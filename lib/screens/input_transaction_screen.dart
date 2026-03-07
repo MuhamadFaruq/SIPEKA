@@ -1,0 +1,433 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import '../providers/transaction_provider.dart';
+import '../providers/budget_provider.dart'; 
+import '../models/transaction_model.dart';
+import 'debt_screen.dart'; 
+
+class InputTransactionScreen extends StatefulWidget {
+  final String? initialCategory;
+  final String? initialAmount;
+
+  const InputTransactionScreen({
+    super.key, 
+    this.initialCategory, 
+    this.initialAmount
+  });
+
+  @override
+  State<InputTransactionScreen> createState() => _InputTransactionScreenState();
+}
+
+class _InputTransactionScreenState extends State<InputTransactionScreen> {
+  String _inputAmount = '0';
+  String _type = 'Pengeluaran'; 
+  String _selectedWallet = 'Dompet'; 
+  String _selectedCategory = 'Lainnya'; 
+  DateTime _selectedDate = DateTime.now();
+  final TextEditingController _noteController = TextEditingController();
+
+  final Color startBlue = const Color(0xFF007AFF);
+  final Color endBlue = const Color(0xFF00479E);
+  final Color colorExpense = const Color(0xFFFF5252);
+  final Color colorIncome = const Color(0xFF00C853);
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialCategory != null) {
+      _selectedCategory = widget.initialCategory!;
+      _type = 'Pengeluaran'; 
+    }
+    if (widget.initialAmount != null) {
+      _inputAmount = widget.initialAmount!;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = Provider.of<TransactionProvider>(context);
+    final budgetProvider = Provider.of<BudgetProvider>(context);
+    
+    double dompetBalance = _calculateBalance(provider.transactions, 'Dompet');
+    double eWalletBalance = _calculateBalance(provider.transactions, 'E-Wallet');
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFE9E9E9),
+      appBar: AppBar(
+        title: Text("Tambah Transaksi", style: GoogleFonts.nunito(fontWeight: FontWeight.bold)),
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [startBlue, endBlue],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        actions: [
+           IconButton(
+             icon: const Icon(Icons.receipt_long), 
+             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const DebtScreen())),
+           )
+        ],
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              children: [
+                const SizedBox(height: 10),
+                _buildHeaderNominal(), 
+                const SizedBox(height: 20),
+                _buildTypeSelector(),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    _buildWalletCard("Dompet", dompetBalance, Icons.wallet, _selectedWallet == 'Dompet'),
+                    const SizedBox(width: 12),
+                    _buildWalletCard("E-Wallet", eWalletBalance, Icons.credit_card, _selectedWallet == 'E-Wallet'),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(_type == 'Pengeluaran' ? "Kategori Pengeluaran" : "Sumber Pemasukan", 
+                    style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black54)),
+                const SizedBox(height: 8),
+                
+                // VALIDASI: Tampilkan pesan jika pengeluaran tapi belum ada anggaran
+                if (_type == 'Pengeluaran' && budgetProvider.budgets.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    child: Center(
+                      child: Text(
+                        "Kelola anggaran dulu yuk di menu Anggaran!",
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.nunito(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  )
+                else
+                  _buildDynamicCategories(), 
+
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _noteController,
+                  decoration: InputDecoration(
+                    hintText: "Catatan (Opsional)",
+                    fillColor: Colors.white,
+                    filled: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: () => _selectDate(context),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12), 
+                      border: Border.all(color: Colors.grey.shade300)
+                    ),
+                    child: Center(
+                      child: Text(DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(_selectedDate),
+                        style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+          _buildSimpleNumpad(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeaderNominal() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))]
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text("Berapa Nih?", style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54)),
+          const SizedBox(height: 5),
+          Center(
+            child: Text(_formatCurrency(_inputAmount),
+              style: GoogleFonts.nunito(fontSize: 38, fontWeight: FontWeight.bold, color: _type == 'Pengeluaran' ? colorExpense : colorIncome)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSimpleNumpad() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 15, 20, 30),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.only(topLeft: Radius.circular(30), topRight: Radius.circular(30)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildNumRow(['1', '2', '3']),
+          const SizedBox(height: 10),
+          _buildNumRow(['4', '5', '6']),
+          const SizedBox(height: 10),
+          _buildNumRow(['7', '8', '9']),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              _buildNumKey('000'), const SizedBox(width: 10),
+              _buildNumKey('0'), const SizedBox(width: 10),
+              Expanded(
+                child: Material(
+                  color: Colors.red[50],
+                  borderRadius: BorderRadius.circular(12),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => setState(() {
+                      _inputAmount = _inputAmount.length > 1 ? _inputAmount.substring(0, _inputAmount.length - 1) : '0';
+                    }),
+                    child: const SizedBox(height: 48, child: Icon(Icons.backspace_outlined, color: Colors.red, size: 20)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 15),
+          SizedBox(
+            width: double.infinity, height: 50,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [startBlue, endBlue]),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: _saveTransaction,
+                child: Text("SIMPAN TRANSAKSI", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, color: Colors.white)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNumRow(List<String> keys) {
+    return Row(children: [
+      _buildNumKey(keys[0]), const SizedBox(width: 10),
+      _buildNumKey(keys[1]), const SizedBox(width: 10),
+      _buildNumKey(keys[2])
+    ]);
+  }
+
+  Widget _buildNumKey(String key) {
+    return Expanded(
+      child: Material(
+        color: Colors.grey[50], borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => setState(() {
+            if (_inputAmount == '0') {
+              _inputAmount = key;
+            } else {
+              _inputAmount += key;
+            }
+          }),
+          child: Container(
+            height: 48, alignment: Alignment.center,
+            child: Text(key, style: GoogleFonts.nunito(fontSize: 20, fontWeight: FontWeight.bold)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- FUNGSI KATEGORI DINAMIS (FIX ERROR & IKON MANUAL) ---
+  Widget _buildDynamicCategories() {
+    final budgetProvider = Provider.of<BudgetProvider>(context);
+    List<Map<String, dynamic>> categoriesToShow = [];
+
+    if (_type == 'Pengeluaran') {
+      if (budgetProvider.budgets.isNotEmpty) {
+        // Konversi anggaran menjadi list kategori dengan ikon manual
+        categoriesToShow = budgetProvider.budgets.map((b) {
+          return <String, dynamic>{
+            'icon': IconData(b.iconCode, fontFamily: 'MaterialIcons'),
+            'label': b.category,
+            'val': b.category
+          };
+        }).toList();
+
+      } else {
+        categoriesToShow = []; 
+      }
+    } else {
+      // Kategori Pemasukan Statis
+      categoriesToShow = [
+        <String, dynamic>{'icon': Icons.work, 'label': 'Gaji', 'val': 'Gaji'},
+        <String, dynamic>{'icon': Icons.card_giftcard, 'label': 'Hadiah', 'val': 'Hadiah'},
+        <String, dynamic>{'icon': Icons.monetization_on, 'label': 'Bonus', 'val': 'Bonus'},
+        <String, dynamic>{'icon': Icons.storefront, 'label': 'Jualan', 'val': 'Penjualan'},
+        <String, dynamic>{'icon': Icons.add_circle_outline, 'label': 'Lainnya', 'val': 'Lainnya'},
+      ];
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: categoriesToShow.map((cat) {
+          bool isSelected = _selectedCategory == cat['val'];
+          return Padding(
+            padding: const EdgeInsets.only(right: 15),
+            child: GestureDetector(
+              onTap: () => setState(() => _selectedCategory = cat['val'] as String),
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isSelected ? startBlue : Colors.white, 
+                      shape: BoxShape.circle,
+                      boxShadow: isSelected ? null : [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4)]
+                    ),
+                    child: Icon(cat['icon'] as IconData, color: isSelected ? Colors.white : Colors.grey, size: 20),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(cat['label'] as String, style: GoogleFonts.nunito(fontSize: 10))
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildTypeSelector() {
+    return Container(
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30)),
+      child: Row(
+        children: [
+          _buildTypeButton("Pengeluaran", colorExpense, _type == 'Pengeluaran'),
+          _buildTypeButton("Pemasukan", colorIncome, _type == 'Pemasukan'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTypeButton(String label, Color color, bool isSelected) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() { 
+          _type = label; 
+          _selectedCategory = label == 'Pengeluaran' ? 'Lainnya' : 'Gaji'; 
+        }),
+        child: AnimatedContainer(duration: const Duration(milliseconds: 200), padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(color: isSelected ? color : Colors.transparent, borderRadius: BorderRadius.circular(30)),
+          alignment: Alignment.center,
+          child: Text(label, style: GoogleFonts.nunito(color: isSelected ? Colors.white : Colors.grey, fontWeight: FontWeight.bold)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWalletCard(String name, double balance, IconData icon, bool isSelected) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _selectedWallet = name),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white, 
+            borderRadius: BorderRadius.circular(16), 
+            border: isSelected ? Border.all(color: startBlue, width: 2) : null
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: isSelected ? startBlue : Colors.orange, size: 22),
+              const SizedBox(width: 8),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                Text(NumberFormat.compactCurrency(locale: 'id_ID', symbol: 'Rp').format(balance), style: const TextStyle(fontSize: 10, color: Colors.grey)),
+              ]))
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  double _calculateBalance(List<Transaction> transactions, String walletName) {
+    double bal = 0;
+    for (var tx in transactions) {
+      if (tx.wallet == walletName) {
+        if (tx.type == 'Income' || tx.type == 'Pemasukan') {
+          bal += tx.amount;
+        } else {
+          bal -= tx.amount;
+        }
+      }
+    }
+    return bal;
+  }
+
+  String _formatCurrency(String amountStr) {
+    double value = double.tryParse(amountStr) ?? 0;
+    return NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(value);
+  }
+
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context, 
+      initialDate: _selectedDate, 
+      firstDate: DateTime(2020), 
+      lastDate: DateTime(2030), 
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(colorScheme: ColorScheme.light(primary: startBlue)), 
+        child: child!
+      )
+    );
+    if (picked != null) setState(() => _selectedDate = picked);
+  }
+
+  void _saveTransaction() {
+    double amount = double.tryParse(_inputAmount) ?? 0;
+    if (amount <= 0) return;
+    
+    final budgetProvider = Provider.of<BudgetProvider>(context, listen: false);
+    
+    if (_type == 'Pengeluaran' && budgetProvider.budgets.isEmpty) {
+       ScaffoldMessenger.of(context).showSnackBar(
+         const SnackBar(content: Text("Buat anggaran dulu ya sebelum mencatat pengeluaran!")),
+       );
+       return;
+    }
+
+    final newTx = Transaction(id: DateTime.now().toString(), title: _noteController.text.isEmpty ? _selectedCategory : _noteController.text, amount: amount, date: _selectedDate, type: _type == 'Pengeluaran' ? 'Expense' : 'Income', category: _selectedCategory, wallet: _selectedWallet);
+    Provider.of<TransactionProvider>(context, listen: false).addTransaction(newTx);
+    Navigator.pop(context);
+  }
+}
