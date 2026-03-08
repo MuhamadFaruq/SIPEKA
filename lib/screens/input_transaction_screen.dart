@@ -70,10 +70,20 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
-           IconButton(
-             icon: const Icon(Icons.receipt_long), 
-             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const DebtScreen())),
-           )
+          // Tombol Scan Nota Baru
+          IconButton(
+            icon: const Icon(Icons.document_scanner_outlined), // Ikon scan
+            tooltip: "Scan Nota",
+            onPressed: () {
+              // Panggil fungsi scan yang sudah kita buat di provider
+              final provider = Provider.of<TransactionProvider>(context, listen: false);
+              _processScan(provider); 
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.receipt_long), 
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const DebtScreen())),
+          )
         ],
       ),
       body: Column(
@@ -100,19 +110,43 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
                 const SizedBox(height: 8),
                 
                 // VALIDASI: Tampilkan pesan jika pengeluaran tapi belum ada anggaran
+                // Cari bagian ini di dalam ListView:
                 if (_type == 'Pengeluaran' && budgetProvider.budgets.isEmpty)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 20),
-                    child: Center(
-                      child: Text(
-                        "Kelola anggaran dulu yuk di menu Anggaran!",
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.nunito(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.bold),
+                    child: InkWell( // Bungkus dengan InkWell agar bisa diklik
+                      onTap: () {
+                        // TUTUP layar input dan KIRIM data index ke-2 (Anggaran)
+                        Navigator.pop(context, 2); 
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.redAccent.withOpacity(0.5)),
+                        ),
+                        child: Column(
+                          children: [
+                            const Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+                            const SizedBox(height: 8),
+                            Text(
+                              "Belum ada anggaran. Klik di sini untuk membuat anggaran terlebih dahulu!",
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.nunito(
+                                color: Colors.redAccent, 
+                                fontSize: 13, 
+                                fontWeight: FontWeight.bold
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   )
                 else
-                  _buildDynamicCategories(), 
+                  _buildDynamicCategories(),
 
                 const SizedBox(height: 16),
                 TextField(
@@ -415,19 +449,70 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
 
   void _saveTransaction() {
     double amount = double.tryParse(_inputAmount) ?? 0;
-    if (amount <= 0) return;
-    
-    final budgetProvider = Provider.of<BudgetProvider>(context, listen: false);
-    
-    if (_type == 'Pengeluaran' && budgetProvider.budgets.isEmpty) {
-       ScaffoldMessenger.of(context).showSnackBar(
-         const SnackBar(content: Text("Buat anggaran dulu ya sebelum mencatat pengeluaran!")),
-       );
-       return;
+
+    // VALIDASI 1: Nominal masih nol
+    if (amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Nominalnya diisi dulu ya!"),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
     }
 
-    final newTx = Transaction(id: DateTime.now().toString(), title: _noteController.text.isEmpty ? _selectedCategory : _noteController.text, amount: amount, date: _selectedDate, type: _type == 'Pengeluaran' ? 'Expense' : 'Income', category: _selectedCategory, wallet: _selectedWallet);
+    // VALIDASI 2: Catatan/Title kosong (Opsional, tergantung keinginanmu)
+    if (_noteController.text.isEmpty && _selectedCategory == 'Lainnya') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Kasih keterangan dikit dong biar nggak bingung."),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    // Jika lolos validasi, baru simpan
+    final newTx = Transaction(
+      id: DateTime.now().toString(),
+      title: _noteController.text.isEmpty ? _selectedCategory : _noteController.text,
+      amount: amount,
+      date: _selectedDate,
+      type: _type == 'Pengeluaran' ? 'Expense' : 'Income',
+      category: _selectedCategory,
+      wallet: _selectedWallet,
+    );
+
     Provider.of<TransactionProvider>(context, listen: false).addTransaction(newTx);
+    
+    // FEEDBACK: Berhasil Simpan
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Mantap! Transaksi berhasil disimpan."),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
     Navigator.pop(context);
+  }
+
+  void _processScan(TransactionProvider provider) async {
+    // Panggil fungsi scan dari provider
+    double? scannedAmount = await provider.scanReceipt(); 
+
+    if (scannedAmount != null && scannedAmount > 0) {
+      setState(() {
+        // Masukkan hasil scan ke variabel lokal agar tampilan "Berapa Nih?" terupdate
+        _inputAmount = scannedAmount.toInt().toString();
+        _type = 'Pengeluaran'; 
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Berhasil mendeteksi: Rp ${_formatCurrency(_inputAmount)}")),
+      );
+    }
   }
 }

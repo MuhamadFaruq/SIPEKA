@@ -135,7 +135,18 @@ class _InsightScreenState extends State<InsightScreen> {
   }
 
   Widget _buildBudgetItem(String category, double spent, double limit) {
-    double percentage = limit == 0 ? 0 : (spent / limit);
+    // 1. Jika limit nol, tampilkan pesan khusus agar tidak error pembagian nol
+    if (limit == 0) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(12)),
+        child: Text("$category: Belum ada batas anggaran", style: GoogleFonts.nunito(color: Colors.grey[600], fontSize: 12)),
+      );
+    }
+
+    // 2. Hitung persentase
+    double percentage = spent / limit;
     Color progressColor = percentage > 0.8 ? const Color(0xFFFF5252) : (percentage > 0.5 ? Colors.amber : const Color(0xFF00C853));
     double visualProgress = percentage > 1.0 ? 1.0 : percentage;
 
@@ -174,6 +185,15 @@ class _InsightScreenState extends State<InsightScreen> {
               style: GoogleFonts.nunito(color: Colors.grey, fontSize: 12)),
           ],
         ),
+        // 3. PESAN OVER BUDGET (Diletakkan di sini setelah variabel percentage ada)
+        if (percentage > 1.0)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              "Over Budget! (Melebihi Rp ${NumberFormat.decimalPattern('id').format(spent - limit)})",
+              style: GoogleFonts.nunito(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold)
+            ),
+          ),
       ],
     );
   }

@@ -1,9 +1,10 @@
+
 class Debt {
-  final String id;
-  final String name; // Nama orang (misal: Budi Santoso)
-  final double amount;
-  final DateTime date;
-  final String type; // 'Lent' (Piutang/Orang hutang ke kita) atau 'Borrowed' (Hutang/Kita hutang ke orang)
+  String id;
+  String name; 
+  double amount; 
+  DateTime date;
+  String type;
 
   Debt({
     required this.id,

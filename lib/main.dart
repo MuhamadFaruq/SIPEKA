@@ -1,3 +1,5 @@
+// main.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -17,7 +19,10 @@ import 'package:intl/date_symbol_data_local.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Inisialisasi format tanggal Indonesia
   await initializeDateFormatting('id_ID', null); 
+  
   runApp(const SIPEKAApp());
 }
 
@@ -28,16 +33,23 @@ class SIPEKAApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        // Provider yang butuh load data
-        ChangeNotifierProvider(create: (_) => TransactionProvider()..loadTransactions()),
-        ChangeNotifierProvider(create: (_) => CategoryProvider()..loadCategories()),
+        // PERBAIKAN: Memanggil fungsi fetch data dari SQLite saat Provider pertama kali dibuat
+        ChangeNotifierProvider(
+          create: (_) => TransactionProvider()..fetchAndSetTransactions(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => BudgetProvider()..fetchAndSetBudgets(),
+        ),
         
-        // PERBAIKAN DI SINI:
-        // Cukup panggil BudgetProvider() saja tanpa loadBudgets()
-        ChangeNotifierProvider(create: (_) => BudgetProvider()), 
+        // Provider lainnya
+        ChangeNotifierProvider(
+          create: (_) => WishlistProvider()..fetchAndSetWishlist(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => DebtProvider()..fetchAndSetDebts(),
+        ),
+        ChangeNotifierProvider(create: (_) => CategoryProvider()..loadCategories()),
         ChangeNotifierProvider(create: (_) => QuickActionProvider()),
-        ChangeNotifierProvider(create: (_) => DebtProvider()),
-        ChangeNotifierProvider(create: (_) => WishlistProvider()),
       ],
       child: MaterialApp(
         title: 'SIPEKA',
@@ -47,29 +59,9 @@ class SIPEKAApp extends StatelessWidget {
             seedColor: AppColors.primaryBlue,
             primary: AppColors.primaryBlue,
             secondary: AppColors.darkBlue,
-            background: AppColors.backgroundLight,
-            surface: AppColors.white,
           ),
           scaffoldBackgroundColor: AppColors.backgroundLight,
           textTheme: GoogleFonts.poppinsTextTheme(),
-          cardTheme: CardThemeData(
-            elevation: AppDimensions.elevationLow,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppDimensions.radiusLarge),
-            ),
-            color: AppColors.white,
-          ),
-          appBarTheme: AppBarTheme(
-            backgroundColor: AppColors.darkBlue,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            centerTitle: false,
-            titleTextStyle: GoogleFonts.poppins(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
           useMaterial3: true,
         ),
         home: const SplashScreen(),

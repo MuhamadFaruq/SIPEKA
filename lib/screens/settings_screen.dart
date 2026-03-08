@@ -1,3 +1,5 @@
+// lib/screens/settings_screen.dart
+
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; 
@@ -14,7 +16,9 @@ import '../providers/transaction_provider.dart';
 import '../providers/budget_provider.dart';
 import '../providers/debt_provider.dart';
 import '../providers/quick_action_provider.dart';
+import '../providers/wishlist_provider.dart'; // <--- TAMBAHKAN INI
 import '../models/quick_action_model.dart';
+import '../utils/database_helper.dart'; 
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -52,7 +56,7 @@ class SettingsScreen extends StatelessWidget {
             child: ListTile(
               leading: CircleAvatar(
                 backgroundColor: startBlue.withOpacity(0.1),
-                child: Icon(Icons.person, color: startBlue),
+                child: const Icon(Icons.person, color: Color(0xFF007AFF)),
               ),
               title: Text("Faruq", style: GoogleFonts.nunito(fontWeight: FontWeight.bold)),
               subtitle: Text("Pengguna SIPEKA", style: GoogleFonts.nunito(fontSize: 12)),
@@ -67,6 +71,14 @@ class SettingsScreen extends StatelessWidget {
           _buildSettingCard(
             child: Column(
               children: [
+                _buildListTile(
+                  icon: Icons.flash_on,
+                  title: "Kelola Jalan Pintas",
+                  subtitle: "Tambah atau hapus transaksi cepat di Home",
+                  color: Colors.orange,
+                  onTap: () => _showManageShortcutsDialog(context), 
+                ),
+                const Divider(height: 1),
                 _buildListTile(
                   icon: Icons.restore,
                   title: "Reset Semua Data",
@@ -123,6 +135,47 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
+  // --- REVISI: Fungsi Reset Data yang sudah bersih dari error ---
+  void _confirmResetData(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text("Hapus Semua Data?", style: GoogleFonts.nunito(fontWeight: FontWeight.bold)),
+        content: const Text("Tindakan ini tidak bisa dibatalkan. Semua transaksi, anggaran, dan hutang akan hilang permanen dari database."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("BATAL")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red), 
+            onPressed: () async { 
+              // 1. Hapus di Memori (Provider)
+              Provider.of<TransactionProvider>(context, listen: false).clearAllData(); 
+              Provider.of<BudgetProvider>(context, listen: false).clearAllData(); 
+              Provider.of<DebtProvider>(context, listen: false).clearAllData(); 
+              Provider.of<WishlistProvider>(context, listen: false).clearAllData();
+              
+              // 2. Hapus di Database Permanen
+              await DatabaseHelper.instance.clearAllTables(); 
+
+              if (!ctx.mounted) return;
+
+              Navigator.pop(ctx); 
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("Berhasil reset semua data ke nol!"),
+                  backgroundColor: Colors.redAccent,
+                  behavior: SnackBarBehavior.floating,
+                )
+              ); 
+            }, 
+            child: const Text("YA, RESET", style: TextStyle(color: Colors.white))
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- Fungsi Kelola Jalan Pintas ---
   void _showManageShortcutsDialog(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -168,7 +221,6 @@ class SettingsScreen extends StatelessWidget {
                                 ),
                                 IconButton(
                                   icon: const Icon(Icons.delete_outline, color: Colors.red), 
-                                  // PERBAIKAN: Gunakan removeAction & Tambah Dialog Konfirmasi
                                   onPressed: () => _confirmDeleteShortcut(context, action.id),
                                 ),
                               ],
@@ -198,7 +250,6 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  // Tambahkan fungsi konfirmasi hapus gaya "Anggaran"
   void _confirmDeleteShortcut(BuildContext context, String id) {
     showDialog(
       context: context,
@@ -222,7 +273,6 @@ class SettingsScreen extends StatelessWidget {
 
   void _showAddShortcutForm(BuildContext context, {QuickAction? existingAction}) {
     final nameController = TextEditingController(text: existingAction?.label);
-    // Jika edit, tampilkan nominal dengan format titik
     final amountController = TextEditingController(
       text: existingAction != null ? NumberFormat.decimalPattern('id').format(existingAction.amount) : ""
     );
@@ -240,8 +290,8 @@ class SettingsScreen extends StatelessWidget {
               controller: amountController, 
               keyboardType: TextInputType.number,
               inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly, // Supaya keyboard hanya angka
-                CurrencyInputFormatter(), // Supaya otomatis ada titik
+                FilteringTextInputFormatter.digitsOnly,
+                CurrencyInputFormatter(),
               ],
               decoration: const InputDecoration(labelText: "Nominal (Rp)", prefixText: "Rp "),
             ),
@@ -254,8 +304,6 @@ class SettingsScreen extends StatelessWidget {
             onPressed: () {
               if (nameController.text.isNotEmpty && amountController.text.isNotEmpty) {
                 final provider = Provider.of<QuickActionProvider>(context, listen: false);
-                
-                // BERSIHKAN TITIK sebelum dikonversi ke double
                 String cleanAmount = amountController.text.replaceAll('.', '');
                 double parsedAmount = double.parse(cleanAmount);
 
@@ -309,10 +357,6 @@ class SettingsScreen extends StatelessWidget {
     }
   }
 
-  Widget _buildSectionTitle(String title) => Padding(padding: const EdgeInsets.only(left: 5, bottom: 10), child: Text(title, style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54)));
-  Widget _buildSettingCard({required Widget child}) => Container(decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))]), child: child);
-  Widget _buildListTile({required IconData icon, required String title, required String subtitle, required Color color, required VoidCallback onTap}) => ListTile(leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, color: color, size: 20)), title: Text(title, style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.bold)), subtitle: Text(subtitle, style: GoogleFonts.nunito(fontSize: 11)), onTap: onTap);
-
   void _showEditProfileDialog(BuildContext context) {
     final nameController = TextEditingController(text: "Faruq");
     showDialog(
@@ -329,18 +373,7 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  void _confirmResetData(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text("Hapus Semua Data?", style: GoogleFonts.nunito(fontWeight: FontWeight.bold)),
-        content: Text("Tindakan ini tidak bisa dibatalkan. Semua transaksi, anggaran, dan hutang akan hilang.", style: GoogleFonts.nunito()),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("BATAL")),
-          ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () { Provider.of<TransactionProvider>(context, listen: false).clearAllData(); Provider.of<BudgetProvider>(context, listen: false).clearAllData(); Provider.of<DebtProvider>(context, listen: false).clearAllData(); Navigator.pop(ctx); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Berhasil reset ke nol!"))); }, child: const Text("YA, RESET", style: TextStyle(color: Colors.white))),
-        ],
-      ),
-    );
-  }
+  Widget _buildSectionTitle(String title) => Padding(padding: const EdgeInsets.only(left: 5, bottom: 10), child: Text(title, style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54)));
+  Widget _buildSettingCard({required Widget child}) => Container(decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))]), child: child);
+  Widget _buildListTile({required IconData icon, required String title, required String subtitle, required Color color, required VoidCallback onTap}) => ListTile(leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, color: color, size: 20)), title: Text(title, style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.bold)), subtitle: Text(subtitle, style: GoogleFonts.nunito(fontSize: 11)), onTap: onTap);
 }

@@ -112,22 +112,31 @@ class _SUSEvaluationScreenState extends State<SUSEvaluationScreen> {
   }
 
   Future<void> _submitEvaluation() async {
-    // Calculate SUS Score (0-100)
-    int score = 0;
+    double totalScore = 0;
+
     for (int i = 0; i < _answers.length; i++) {
+      // Karena index i dimulai dari 0 (pertanyaan 1), maka:
+      // i genap = pertanyaan ganjil (1, 3, 5, 7, 9)
+      // i ganjil = pertanyaan genap (2, 4, 6, 8, 10)
+      
+      // Kita asumsikan pilihan i (0-4) dikonversi ke skala 1-5
+      int response = _answers[i] + 1; 
+
       if (i % 2 == 0) {
-        // Odd-numbered questions (1, 3, 5, 7, 9): score = answer - 1
-        score += _answers[i] - 1;
+        // Pertanyaan Positif: Skor = (Jawaban - 1)
+        totalScore += (response - 1);
       } else {
-        // Even-numbered questions (2, 4, 6, 8, 10): score = 5 - answer
-        score += 5 - _answers[i];
+        // Pertanyaan Negatif: Skor = (5 - Jawaban)
+        totalScore += (5 - response);
       }
     }
-    score = score * 2.5.toInt(); // Convert to 0-100 scale
 
-    // Save evaluation
+    // Hasil akhir adalah total skor dikali 2.5
+    double finalSusScore = totalScore * 2.5;
+
+    // Simpan ke SharedPreferences
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('sus_score', score);
+    await prefs.setDouble('sus_score', finalSusScore);
     await prefs.setBool('sus_completed', true);
     await prefs.setString('sus_date', DateTime.now().toIso8601String());
 
@@ -135,8 +144,9 @@ class _SUSEvaluationScreenState extends State<SUSEvaluationScreen> {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Terima kasih atas feedback kamu! Skor: $score/100'),
-          duration: const Duration(seconds: 3),
+          content: Text('Feedback terkirim! Skor SUS: ${finalSusScore.toStringAsFixed(1)}/100'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     }

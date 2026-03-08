@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -6,11 +7,13 @@ import 'package:provider/provider.dart';
 // Import Provider
 import '../providers/transaction_provider.dart';
 import '../providers/quick_action_provider.dart';
-import '../providers/budget_provider.dart'; // Import Baru
+import '../providers/budget_provider.dart'; 
 
 // Import Model
 import '../models/transaction_model.dart';
 import '../models/quick_action_model.dart';
+import '../utils/formatters.dart'; 
+import '../utils/constants.dart';
 
 // Import Screen
 import 'all_transactions_screen.dart';
@@ -30,7 +33,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final budgetProvider = Provider.of<BudgetProvider>(context, listen: false);
     final quickActionProvider = Provider.of<QuickActionProvider>(context, listen: false);
     
-    // Ambil daftar nama kategori dari anggaran
     List<String> daftarAnggaran = budgetProvider.budgets.map((b) => b.category).toList();
 
     if (daftarAnggaran.isEmpty) {
@@ -71,7 +73,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   Text("Tambah Jalan Pintas", style: GoogleFonts.nunito(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 20),
                   
-                  // Dropdown Kategori dari Anggaran
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
@@ -92,10 +93,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 15),
                   
-                  // Input Nominal Cepat
                   TextField(
                     controller: amountController,
                     keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
                     decoration: InputDecoration(
                       labelText: "Nominal Transaksi Cepat",
                       filled: true,
@@ -116,9 +117,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, padding: const EdgeInsets.symmetric(vertical: 15)),
                         onPressed: () {
-                          double amt = double.tryParse(amountController.text) ?? 0;
+                          // PERBAIKAN: Bersihkan titik sebelum parse
+                          String cleanValue = amountController.text.replaceAll('.', '');
+                          double amt = double.tryParse(cleanValue) ?? 0;
+                          
                           if (selectedKategori != null && amt > 0) {
-                            // Ambil ikon dari budget yang dipilih
                             int iconCode = budgetProvider.budgets.firstWhere((b) => b.category == selectedKategori).iconCode;
                             
                             quickActionProvider.addAction(QuickAction(
@@ -148,8 +151,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final provider = Provider.of<TransactionProvider>(context);
     
-    final List<Transaction> sortedTransactions = List<Transaction>.from(provider.transactions);
-    sortedTransactions.sort((a, b) => b.date.compareTo(a.date));
+    // PERBAIKAN: Gunakan data asli dari provider tanpa sort manual di build (sudah disort di getter provider)
+    final List<Transaction> sortedTransactions = provider.transactions;
 
     double dompetBalance = _calculateBalance(sortedTransactions, 'Dompet');
     double eWalletBalance = _calculateBalance(sortedTransactions, 'E-Wallet');
@@ -192,9 +195,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                       IconButton(
-                        onPressed: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsScreen()));
-                        }, 
+                        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsScreen())), 
                         icon: const Icon(Icons.more_vert, color: Colors.white)
                       )
                     ],
@@ -256,7 +257,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 const Color(0xFF007AFF), 
                                 action.category, 
                                 action.amount,
-                                action.id, // Tambah ID untuk hapus
+                                action.id, 
                               ),
                             );
                           }).toList(),
@@ -279,9 +280,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Text("Transaksi Terbaru", style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.bold)),
                       GestureDetector(
-                        onTap: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (context) => const AllTransactionsScreen()));
-                        },
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AllTransactionsScreen())),
                         child: Text("Lihat Semua >", style: GoogleFonts.nunito(fontSize: 12, color: const Color(0xFF007AFF))),
                       ),
                     ],
@@ -322,7 +321,8 @@ class _HomeScreenState extends State<HomeScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(color: const Color(0xFF007AFF).withOpacity(0.07), shape: BoxShape.circle),
-            child: Icon(_getCategoryIcon(tx.category), size: 20, color: const Color(0xFF007AFF)),
+            // PERBAIKAN: Gunakan Ikon dinamis dari AppIcons
+            child: Icon(AppIcons.getIcon(tx.category), size: 20, color: const Color(0xFF007AFF)),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -335,20 +335,15 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           Text(
-            "${tx.type == 'Expense' ? '-' : '+'}${NumberFormat.currency(locale: 'id_ID', symbol: '', decimalDigits: 0).format(tx.amount)}",
+            "${(tx.type == 'Expense' || tx.type == 'Pengeluaran') ? '-' : '+'}${NumberFormat.currency(locale: 'id_ID', symbol: '', decimalDigits: 0).format(tx.amount)}",
             style: GoogleFonts.nunito(
               fontWeight: FontWeight.bold, fontSize: 15,
-              color: tx.type == 'Expense' ? const Color(0xFFFF5252) : const Color(0xFF00C853),
+              color: (tx.type == 'Expense' || tx.type == 'Pengeluaran') ? const Color(0xFFFF5252) : const Color(0xFF00C853),
             ),
           ),
         ],
       ),
     );
-  }
-
-  IconData _getCategoryIcon(String category) {
-    // Bisa disesuaikan dengan logic ikon dinamis anggaran jika perlu
-    return Icons.monetization_on;
   }
 
   double _calculateBalance(List<Transaction> transactions, String walletName) {
@@ -390,7 +385,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return GestureDetector(
       onTap: () => _showConfirmationDialog(context, label, category, amount, icon),
       onLongPress: () {
-        // Logika hapus jalan pintas
         Provider.of<QuickActionProvider>(context, listen: false).removeAction(id);
       },
       child: Column(

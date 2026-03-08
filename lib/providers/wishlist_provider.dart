@@ -1,35 +1,68 @@
 import 'package:flutter/material.dart';
 import '../models/wishlist_model.dart';
-
+import '../utils/database_helper.dart';
 
 class WishlistProvider with ChangeNotifier {
-  // Data Dummy sesuai Figma kamu
-  final List<WishlistItem> _items = [
-    WishlistItem(id: '1', title: 'Sepatu Running', targetAmount: 1500000, savedAmount: 900000),
-    WishlistItem(id: '2', title: 'Liburan Ke Bali', targetAmount: 5000000, savedAmount: 1200000),
-    WishlistItem(id: '3', title: 'HP iPhone', targetAmount: 10000000, savedAmount: 110000),
-  ];
+  List<WishlistItem> _items = [];
 
   List<WishlistItem> get items => _items;
 
   double get totalSaved => _items.fold(0, (sum, item) => sum + item.savedAmount);
   double get totalTarget => _items.fold(0, (sum, item) => sum + item.targetAmount);
 
-  void addWishlist(WishlistItem item) {
-    _items.add(item);
+  // --- FUNGSI AMBIL DATA DARI DATABASE ---
+  Future<void> fetchAndSetWishlist() async {
+    final dataList = await DatabaseHelper.instance.getAllWishlist();
+    _items = dataList.map((item) => WishlistItem(
+      id: item['id'].toString(), // SQLite id biasanya int, kita convert ke string
+      title: item['title'],
+      targetAmount: item['target'],
+      savedAmount: item['collected'],
+    )).toList();
     notifyListeners();
   }
 
-  void addSavings(String id, double amount) {
+  // --- FUNGSI TAMBAH (SINKRON SQLITE) ---
+  Future<void> addWishlist(WishlistItem item) async {
+    _items.add(item);
+    notifyListeners();
+
+    await DatabaseHelper.instance.insertWishlist({
+      'title': item.title,
+      'target': item.targetAmount,
+      'collected': item.savedAmount,
+      'icon_code': 58419, // Default icon stars
+    });
+    
+    // Refresh data agar mendapatkan ID asli dari database
+    await fetchAndSetWishlist();
+  }
+
+  // --- FUNGSI NABUNG (SINKRON SQLITE) ---
+  Future<void> addSavings(String id, double amount) async {
     final index = _items.indexWhere((item) => item.id == id);
     if (index != -1) {
       _items[index].savedAmount += amount;
       notifyListeners();
+
+      // Update di SQLite
+      await DatabaseHelper.instance.updateWishlist(int.parse(id), {
+        'collected': _items[index].savedAmount,
+      });
     }
   }
 
-  void deleteWishlist(String id) {
+  // --- FUNGSI HAPUS (SINKRON SQLITE) ---
+  Future<void> deleteWishlist(String id) async {
     _items.removeWhere((item) => item.id == id);
+    notifyListeners();
+    
+    await DatabaseHelper.instance.deleteWishlist(int.parse(id));
+  }
+
+  // --- FUNGSI RESET UNTUK SETTINGS ---
+  void clearAllData() {
+    _items = [];
     notifyListeners();
   }
 }

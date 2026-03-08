@@ -4,26 +4,22 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../providers/transaction_provider.dart';
 import '../models/transaction_model.dart';
+import '../utils/constants.dart'; // Import AppIcons
 
 class AllTransactionsScreen extends StatelessWidget {
   const AllTransactionsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // 1. Mengambil data transaksi dari provider
     final provider = Provider.of<TransactionProvider>(context);
     
-    // 2. Mengurutkan data berdasarkan tanggal terbaru
-    final List<Transaction> transactions = List<Transaction>.from(provider.transactions);
-    transactions.sort((a, b) => b.date.compareTo(a.date));
+    // Data otomatis diambil dari provider (sudah disort di getter provider)
+    final List<Transaction> transactions = provider.transactions;
 
     return Scaffold(
-      // WARNA BACKGROUND: Abu-abu muda agar kotak putih terlihat kontras
       backgroundColor: const Color(0xFFE9E9E9), 
       appBar: AppBar(
-        // Menghapus bayangan standar
         elevation: 0,
-        // Tombol kembali warna putih agar kontras dengan gradasi biru
         iconTheme: const IconThemeData(color: Colors.white),
         centerTitle: true,
         title: Text(
@@ -34,16 +30,12 @@ class AllTransactionsScreen extends StatelessWidget {
             color: Colors.white
           ),
         ),
-        // --- LOGIKA GRADASI PADA HEADER ---
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF007AFF), // Biru Terang
-                Color(0xFF00479E), // Biru Gelap
-              ],
+              colors: [Color(0xFF007AFF), Color(0xFF00479E)],
             ),
           ),
         ),
@@ -55,22 +47,25 @@ class AllTransactionsScreen extends StatelessWidget {
               itemCount: transactions.length,
               itemBuilder: (context, index) {
                 final tx = transactions[index];
-                return _buildTransactionCard(tx);
+                // Tambahkan fitur hapus saat tekan lama
+                return InkWell(
+                  onLongPress: () => _confirmDelete(context, tx),
+                  child: _buildTransactionCard(tx),
+                );
               },
             ),
     );
   }
 
-  // --- WIDGET KARTU TRANSAKSI (KOTAK PUTIH RAMPING) ---
-  // --- WIDGET KARTU TRANSAKSI (GAYA 3 BARIS RAMPING) ---
   Widget _buildTransactionCard(Transaction tx) {
-    bool isExpense = tx.type == 'Expense';
+    // Penyesuaian logika tipe transaksi agar warna sinkron
+    bool isExpense = tx.type == 'Expense' || tx.type == 'Pengeluaran';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10), 
       padding: const EdgeInsets.all(12), 
       decoration: BoxDecoration(
-        color: Colors.white, // Kotak Putih (FFFFFF) sesuai tema baru
+        color: Colors.white,
         borderRadius: BorderRadius.circular(15),
         boxShadow: [
           BoxShadow(
@@ -82,28 +77,27 @@ class AllTransactionsScreen extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // 1. Indikator Ikon Kecil
+          // 1. Ikon Kategori Dinamis (Sesuai Anggaran)
           Container(
-            padding: const EdgeInsets.all(6), 
+            padding: const EdgeInsets.all(8), 
             decoration: BoxDecoration(
               color: isExpense ? Colors.red[50] : Colors.green[50],
               shape: BoxShape.circle,
             ),
             child: Icon(
-              isExpense ? Icons.arrow_outward_rounded : Icons.south_west_rounded,
-              size: 16, 
+              AppIcons.getIcon(tx.category), // Gunakan Ikon Kategori
+              size: 20, 
               color: isExpense ? Colors.red : Colors.green,
             ),
           ),
           const SizedBox(width: 15),
 
-          // 2. Kolom Informasi (3 Baris)
+          // 2. Kolom Informasi
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Baris 1: Judul & Sumber Dana
                 Row(
                   children: [
                     Expanded(
@@ -119,7 +113,6 @@ class AllTransactionsScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 6),
-                    // Ikon Sumber Dana (Biru 007AFF)
                     Icon(
                       tx.wallet == 'Dompet' ? Icons.wallet_rounded : Icons.phonelink_ring_rounded,
                       size: 13,
@@ -136,33 +129,20 @@ class AllTransactionsScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 2),
-
-                // Baris 2: Kategori
                 Text(
                   tx.category,
-                  style: GoogleFonts.nunito(
-                    color: Colors.black54,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: GoogleFonts.nunito(color: Colors.black54, fontSize: 11),
                 ),
-                const SizedBox(height: 2),
-
-                // Baris 3: Tanggal & Waktu Lengkap
                 Text(
                   DateFormat('d MMMM yyyy, HH:mm', 'id_ID').format(tx.date),
-                  style: GoogleFonts.nunito(
-                    color: Colors.grey,
-                    fontSize: 10, 
-                  ),
+                  style: GoogleFonts.nunito(color: Colors.grey, fontSize: 10),
                 ),
               ],
             ),
           ),
           const SizedBox(width: 10),
 
-          // 3. Nominal Keuangan
+          // 3. Nominal
           Text(
             "${isExpense ? '-' : '+'}${NumberFormat.currency(locale: 'id_ID', symbol: '', decimalDigits: 0).format(tx.amount)}",
             style: GoogleFonts.nunito(
@@ -176,7 +156,32 @@ class AllTransactionsScreen extends StatelessWidget {
     );
   }
 
-  // Tampilan jika data masih kosong
+  // --- LOGIKA HAPUS TRANSAKSI ---
+  void _confirmDelete(BuildContext context, Transaction tx) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text("Hapus Transaksi?"),
+        content: Text("Yakin ingin menghapus catatan '${tx.title}'?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("BATAL")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              Provider.of<TransactionProvider>(context, listen: false).deleteTransaction(tx.id);
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Berhasil dihapus"), behavior: SnackBarBehavior.floating),
+              );
+            },
+            child: const Text("HAPUS", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildEmptyState() {
     return Center(
       child: Column(
@@ -184,10 +189,7 @@ class AllTransactionsScreen extends StatelessWidget {
         children: [
           Icon(Icons.history_rounded, size: 64, color: Colors.grey[400]),
           const SizedBox(height: 15),
-          Text(
-            "Belum ada riwayat transaksi",
-            style: GoogleFonts.nunito(color: Colors.grey),
-          ),
+          Text("Belum ada riwayat transaksi", style: GoogleFonts.nunito(color: Colors.grey)),
         ],
       ),
     );

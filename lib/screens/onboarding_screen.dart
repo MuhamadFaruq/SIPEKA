@@ -43,13 +43,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   void _nextPage() {
-    if (_currentPage < _pages.length - 1) {
+    if (_currentPage < _pages.length) { // Mengacu pada index PageView
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
     } else {
-      _completeOnboarding();
+      // Validasi: Pastikan nama diisi sebelum mulai
+      if (_nameController.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Isi nama dulu ya biar kenal!")),
+        );
+      } else {
+        _completeOnboarding();
+      }
     }
   }
 

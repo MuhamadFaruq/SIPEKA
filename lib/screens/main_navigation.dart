@@ -29,11 +29,17 @@ class _MainNavigationState extends State<MainNavigation> {
     });
   }
 
-  void _onFabTapped() {
-    Navigator.push(
+  void _onFabTapped() async { 
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const InputTransactionScreen()),
     );
+
+    if (result != null && result is int) {
+      setState(() {
+        _selectedIndex = result;
+      });
+    }
   }
 
   @override
@@ -41,6 +47,9 @@ class _MainNavigationState extends State<MainNavigation> {
     const Color primaryBlue = Color(0xFF2972FF);
 
     return Scaffold(
+      // PERBAIKAN UTAMA: Mencegah FAB dan Bottom Bar terangkat saat keyboard muncul
+      resizeToAvoidBottomInset: false, 
+      
       body: _screens[_selectedIndex],
 
       // FAB Besar di Tengah
@@ -57,10 +66,10 @@ class _MainNavigationState extends State<MainNavigation> {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
 
-      // Navigasi Bawah yang Ramping
+      // Navigasi Bawah
       bottomNavigationBar: BottomAppBar(
-        padding: const EdgeInsets.symmetric(vertical: 0), // Menghilangkan padding bawaan
-        height: 50, // Mengunci tinggi agar tidak longgar ke bawah
+        padding: const EdgeInsets.symmetric(vertical: 0),
+        height: 65, // Sedikit ditinggikan agar pas dengan Notch FAB
         notchMargin: 8,
         shape: const CircularNotchedRectangle(),
         color: primaryBlue,
@@ -108,7 +117,7 @@ class _MainNavigationState extends State<MainNavigation> {
             Icon(
               icon,
               color: isSelected ? Colors.white : Colors.white.withOpacity(0.5),
-              size: 30, // Sedikit diperkecil agar tidak sesak
+              size: 24, // Perkecil sedikit dari 30 ke 24 agar teks di bawahnya punya ruang
             ),
             const SizedBox(height: 2),
             Text(

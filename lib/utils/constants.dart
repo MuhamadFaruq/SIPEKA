@@ -1,4 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+
+class AppIcons {
+  static const Map<String, IconData> iconMapping = {
+    'Makan': Icons.restaurant,
+    'Transport': Icons.directions_car,
+    'Gaji': Icons.work,
+    'Belanja': Icons.shopping_bag,
+    'Kesehatan': Icons.medical_services,
+    'Pendidikan': Icons.school,
+    'Tagihan': Icons.receipt_long,
+    'Hiburan': Icons.confirmation_number,
+    'Rumah': Icons.home,
+    'Camilan': Icons.fastfood,
+    'Lainnya': Icons.category,
+  };
+
+  // Fungsi pembantu agar tidak error jika key tidak ditemukan
+  static IconData getIcon(String categoryName) {
+    return iconMapping[categoryName] ?? Icons.help_outline;
+  }
+}
 
 class AppColors {
   // Primary Colors (Strictly use these)

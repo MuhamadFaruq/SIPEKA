@@ -1,3 +1,5 @@
+// lib/screens/budget_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -8,6 +10,7 @@ import '../models/budget_model.dart';
 import '../models/transaction_model.dart';
 import 'package:flutter/services.dart';
 import '../utils/formatters.dart';
+import '../utils/constants.dart'; // PENTING: Import AppIcons
 
 class BudgetScreen extends StatefulWidget {
   const BudgetScreen({super.key});
@@ -20,6 +23,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
   final Color startBlue = const Color(0xFF007AFF);
   final Color endBlue = const Color(0xFF00479E);
 
+  // Daftar ikon untuk modal tambah anggaran
   final List<IconData> _availableIcons = [
     Icons.restaurant, 
     Icons.local_gas_station, 
@@ -55,6 +59,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
+            // Header Anggaran
             Container(
               width: double.infinity,
               padding: const EdgeInsets.only(top: 60, left: 20, right: 20, bottom: 15),
@@ -98,8 +103,9 @@ class _BudgetScreenState extends State<BudgetScreen> {
                 ],
               ),
             ),
+            
+            // List Anggaran
             Padding(
-              // PERBAIKAN: Padding horizontal tetap 20, tapi vertical dikurangi
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               child: Column(
                 children: [
@@ -115,11 +121,9 @@ class _BudgetScreenState extends State<BudgetScreen> {
                       )
                     ],
                   ),
-                  // PERBAIKAN: SizedBox diubah dari 15 ke 5 agar mepet
                   const SizedBox(height: 5), 
                   ListView.builder(
                     shrinkWrap: true,
-                    // PERBAIKAN: Padding ListView di-zero agar tidak ada gap tambahan
                     padding: EdgeInsets.zero, 
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: budgetProvider.budgets.length,
@@ -142,7 +146,6 @@ class _BudgetScreenState extends State<BudgetScreen> {
     double progress = (budget.limit == 0 ? 0.0 : (used / budget.limit)).toDouble().clamp(0.0, 1.0);
     
     return Container(
-      // PERBAIKAN: Margin top di-set 0 dan bottom dikurangi agar antar kartu rapat
       margin: const EdgeInsets.only(top: 0, bottom: 10), 
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -157,7 +160,8 @@ class _BudgetScreenState extends State<BudgetScreen> {
               Container(
                 width: 44, height: 44,
                 decoration: BoxDecoration(color: startBlue.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-                child: Icon(IconData(budget.iconCode, fontFamily: 'MaterialIcons'), color: startBlue, size: 24),
+                // PERBAIKAN: Syntax IconData dan pemanggilan AppIcons
+                child: Icon(AppIcons.getIcon(budget.category), color: startBlue, size: 24),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -209,6 +213,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
     );
   }
 
+  // --- Modal Dialog Tambah/Edit ---
   void _showBudgetDialog(BuildContext context, {Budget? budget}) {
     final isEditing = budget != null;
     final nameController = TextEditingController(text: isEditing ? budget.category : '');
@@ -223,6 +228,43 @@ class _BudgetScreenState extends State<BudgetScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setModalState) {
+            
+            // FUNGSI SIMPAN DI DALAM MODAL (Agar bisa akses controller)
+            void saveProcess() {
+              final name = nameController.text.trim();
+              final limitStr = limitController.text.replaceAll('.', '');
+              final limit = double.tryParse(limitStr) ?? 0;
+
+              if (name.isEmpty || limit <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("Nama kategori dan nominal limit harus diisi!"),
+                    backgroundColor: Colors.orange,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+                return;
+              }
+
+              final budgetProvider = Provider.of<BudgetProvider>(context, listen: false);
+
+              if (isEditing) {
+                budgetProvider.updateBudget(budget.id, name, limit, selectedIconCode);
+                _showSuccessSnackBar("Anggaran berhasil diperbarui!");
+              } else {
+                budgetProvider.addBudget(
+                  Budget(
+                    id: DateTime.now().toString(),
+                    category: name,
+                    limit: limit,
+                    iconCode: selectedIconCode,
+                  ),
+                );
+                _showSuccessSnackBar("Anggaran baru berhasil ditambahkan!");
+              }
+              Navigator.pop(ctx); // Tutup Modal
+            }
+
             return Padding(
               padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom + 20, top: 20, left: 20, right: 20),
               child: Column(
@@ -267,22 +309,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                       Expanded(
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(backgroundColor: startBlue, padding: const EdgeInsets.symmetric(vertical: 15)),
-                          onPressed: () {
-                            final limit = double.tryParse(limitController.text.replaceAll('.', '')) ?? 0.0;
-                            if (nameController.text.isNotEmpty && limit > 0) {
-                              if (isEditing) {
-                                Provider.of<BudgetProvider>(context, listen: false).updateBudget(budget.id, nameController.text, limit, selectedIconCode);
-                              } else {
-                                Provider.of<BudgetProvider>(context, listen: false).addBudget(Budget(
-                                  id: DateTime.now().toString(), 
-                                  category: nameController.text, 
-                                  limit: limit,
-                                  iconCode: selectedIconCode,
-                                ));
-                              }
-                              Navigator.pop(ctx);
-                            }
-                          },
+                          onPressed: saveProcess, // Panggil fungsi di atas
                           child: const Text("SIMPAN ANGGARAN", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                         ),
                       ),
@@ -297,9 +324,10 @@ class _BudgetScreenState extends State<BudgetScreen> {
     );
   }
 
+  // --- Fungsi Utility ---
   List<Transaction> _filterTransactionsByMonth(List<Transaction> allTx) {
     final now = DateTime.now();
-    return allTx.where((tx) => tx.date.month == now.month && tx.date.year == now.year && tx.type == 'Expense').toList();
+    return allTx.where((tx) => tx.date.month == now.month && tx.date.year == now.year && (tx.type == 'Expense' || tx.type == 'Pengeluaran')).toList();
   }
 
   double _calculateUsedAmount(List<Transaction> transactions, String category) {
@@ -317,13 +345,29 @@ class _BudgetScreenState extends State<BudgetScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text("Hapus?"),
+        content: const Text("Apakah Anda yakin ingin menghapus anggaran ini?"),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("BATAL")),
-          ElevatedButton(onPressed: () { 
-            Provider.of<BudgetProvider>(context, listen: false).deleteBudget(id);
-            Navigator.pop(ctx); Navigator.pop(context);
-          }, child: const Text("HAPUS")),
+          ElevatedButton(
+            onPressed: () { 
+              Provider.of<BudgetProvider>(context, listen: false).deleteBudget(id);
+              Navigator.pop(ctx); 
+              Navigator.pop(context);
+            }, 
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text("HAPUS", style: TextStyle(color: Colors.white)),
+          ),
         ],
+      ),
+    );
+  }
+
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
