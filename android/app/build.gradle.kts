@@ -1,13 +1,14 @@
 plugins {
     id("com.android.application")
     id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
 android {
     namespace = "com.example.sipeka"
-    compileSdk = flutter.compileSdkVersion
+    
+    // UBAH INI: Dari 36 ke 34 agar stabil
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -20,22 +21,35 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.sipeka"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
+        
+        // ML Kit butuh minimal 21. 
+        // Kamu bisa pakai 21 langsung untuk memastikan.
         minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 34 
+        
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
+            // Jika untuk rilis beneran, pastikan nanti ganti ke signingConfigs.release
             signingConfig = signingConfigs.getByName("debug")
+            
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
+    }
+}
+
+configurations.all {
+    resolutionStrategy {
+        force("androidx.core:core:1.13.1")
+        force("androidx.core:core-ktx:1.13.1")
+        // Tambahkan ini jika masih error activity
+        force("androidx.activity:activity:1.11.0")
+        force("androidx.activity:activity-ktx:1.11.0")
     }
 }
 

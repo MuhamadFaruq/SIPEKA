@@ -5,10 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; 
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'package:csv/csv.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart'; 
+import 'package:csv/csv.dart';
 
 // Import Utilities & Provider
 import '../utils/formatters.dart'; 
@@ -16,7 +16,7 @@ import '../providers/transaction_provider.dart';
 import '../providers/budget_provider.dart';
 import '../providers/debt_provider.dart';
 import '../providers/quick_action_provider.dart';
-import '../providers/wishlist_provider.dart'; // <--- TAMBAHKAN INI
+import '../providers/wishlist_provider.dart';
 import '../models/quick_action_model.dart';
 import '../utils/database_helper.dart'; 
 
@@ -344,7 +344,9 @@ class SettingsScreen extends StatelessWidget {
     for (var tx in transactions) {
       rows.add([tx.id, tx.title, tx.amount, tx.category, tx.wallet, tx.type, tx.date.toString()]);
     }
+
     String csvData = const ListToCsvConverter().convert(rows);
+
     try {
       final directory = await getTemporaryDirectory();
       final path = "${directory.path}/laporan_sipeka_${DateTime.now().millisecondsSinceEpoch}.csv";

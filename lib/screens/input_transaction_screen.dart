@@ -6,6 +6,10 @@ import '../providers/transaction_provider.dart';
 import '../providers/budget_provider.dart'; 
 import '../models/transaction_model.dart';
 import 'debt_screen.dart'; 
+import 'package:image_cropper/image_cropper.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:flutter/services.dart';
+import '../utils/ocr_helper.dart';
 
 class InputTransactionScreen extends StatefulWidget {
   final String? initialCategory;
@@ -74,11 +78,7 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
           IconButton(
             icon: const Icon(Icons.document_scanner_outlined), // Ikon scan
             tooltip: "Scan Nota",
-            onPressed: () {
-              // Panggil fungsi scan yang sudah kita buat di provider
-              final provider = Provider.of<TransactionProvider>(context, listen: false);
-              _processScan(provider); 
-            },
+            onPressed: () => _processScan(),
           ),
           IconButton(
             icon: const Icon(Icons.receipt_long), 
@@ -499,20 +499,74 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
     Navigator.pop(context);
   }
 
-  void _processScan(TransactionProvider provider) async {
-    // Panggil fungsi scan dari provider
-    double? scannedAmount = await provider.scanReceipt(); 
+  void _processScan() async {
+    final picker = ImagePicker();
+    // 1. Ambil Foto menggunakan Kamera Samsung S21 FE kamu
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 50, // Kompres sedikit agar proses OCR lebih cepat
+    );
 
-    if (scannedAmount != null && scannedAmount > 0) {
-      setState(() {
-        // Masukkan hasil scan ke variabel lokal agar tampilan "Berapa Nih?" terupdate
-        _inputAmount = scannedAmount.toInt().toString();
-        _type = 'Pengeluaran'; 
-      });
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Berhasil mendeteksi: Rp ${_formatCurrency(_inputAmount)}")),
+    if (image != null) {
+      // 2. Langkah UX: Cropping agar OCR fokus pada angka TOTAL saja
+      final croppedFile = await ImageCropper().cropImage(
+        sourcePath: image.path,
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: 'Fokuskan pada Total Belanja',
+            toolbarColor: startBlue,
+            toolbarWidgetColor: Colors.white,
+            initAspectRatio: CropAspectRatioPreset.original,
+            lockAspectRatio: false,
+          ),
+          IOSUiSettings(
+            title: 'Fokuskan pada Total Belanja',
+          ),
+        ],
       );
+
+      if (croppedFile != null) {
+        // Tampilkan Loading Indicator (Opsional tapi bagus untuk UX)
+        _showLoadingDialog();
+
+        // 3. Jalankan OCR pada gambar hasil crop
+        double? result = await OCRHelper.extractTotal(croppedFile.path);
+        
+        if (mounted) Navigator.pop(context); // Tutup loading
+
+        if (result != null && result > 0) {
+          HapticFeedback.lightImpact();
+          setState(() {
+            // Update nominal secara otomatis
+            _inputAmount = result.toInt().toString();
+            _type = 'Pengeluaran'; 
+          });
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Berhasil mendeteksi: ${_formatCurrency(_inputAmount)}"),
+              backgroundColor: startBlue,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Gagal mendeteksi angka. Coba foto lebih tegak dan terang."),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      }
     }
+  }
+
+  // Tambahkan helper dialog sederhana
+  void _showLoadingDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator(color: Colors.white)),
+    );
   }
 }

@@ -85,6 +85,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.white,
+      // Pastikan ini TRUE (defaultnya memang true)
+      resizeToAvoidBottomInset: true, 
       body: SafeArea(
         child: Column(
           children: [
@@ -164,55 +166,56 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Widget _buildOnboardingPage(OnboardingPage page) {
-    return Padding(
-      padding: const EdgeInsets.all(AppDimensions.spacingXL),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              color: AppColors.primaryBlue.withOpacity(0.1),
-              shape: BoxShape.circle,
+      return Padding(
+        padding: const EdgeInsets.all(AppDimensions.spacingXL),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: AppColors.primaryBlue.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                page.icon,
+                size: 60,
+                color: AppColors.primaryBlue,
+              ),
             ),
-            child: Icon(
-              page.icon,
-              size: 60,
-              color: AppColors.primaryBlue,
+            const SizedBox(height: AppDimensions.spacingXXL),
+            Text(
+              page.title,
+              style: GoogleFonts.poppins(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+              textAlign: TextAlign.center,
             ),
-          ),
-          const SizedBox(height: AppDimensions.spacingXXL),
-          Text(
-            page.title,
-            style: GoogleFonts.poppins(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
+            const SizedBox(height: AppDimensions.spacingL),
+            Text(
+              page.description,
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                color: AppColors.textSecondary,
+                height: 1.5,
+              ),
+              textAlign: TextAlign.center,
             ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: AppDimensions.spacingL),
-          Text(
-            page.description,
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              color: AppColors.textSecondary,
-              height: 1.5,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
+          ],
+        ),
+      );
+    }
 
-  Widget _buildNameInputPage() {
-    return Padding(
+    Widget _buildNameInputPage() {
+    return SingleChildScrollView( // <--- Tambahkan ini
       padding: const EdgeInsets.all(AppDimensions.spacingXL),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        // Hapus MainAxisAlignment.center agar tidak dipaksa ke tengah layar saat menyempit
         children: [
+          const SizedBox(height: AppDimensions.spacingXXL), // Beri jarak dari atas
           Container(
             width: 120,
             height: 120,
@@ -248,6 +251,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           const SizedBox(height: AppDimensions.spacingXXL),
           TextField(
             controller: _nameController,
+            // Menambahkan aksi ketika tombol "Done" ditekan
+            onSubmitted: (_) => _nextPage(), 
+            textInputAction: TextInputAction.done,
+            autofocus: false, 
             decoration: InputDecoration(
               hintText: 'Masukkan nama kamu',
               hintStyle: GoogleFonts.poppins(
@@ -267,6 +274,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
             textCapitalization: TextCapitalization.words,
           ),
+          // Beri bantalan bawah agar TextField tidak mepet keyboard
+          const SizedBox(height: AppDimensions.spacingXXL), 
         ],
       ),
     );

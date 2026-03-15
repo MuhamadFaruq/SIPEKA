@@ -10,34 +10,36 @@ dependencies:
   flutter:
     sdk: flutter
   
-  sqflite: ^2.3.0
-  path: ^1.8.3
+  sqflite: ^2.4.1
+  path: ^1.9.0
 
-  # OCR & Image Handling
-  image_picker: ^1.0.4
-  google_mlkit_text_recognition: ^0.11.0
-  
+  # OCR & Image Handling - Update ke versi yang mendukung SDK terbaru
+  image_picker: ^1.1.2
+  image_cropper: ^11.0.0
+  google_mlkit_text_recognition: ^0.13.1 # Update dari 0.11.0
+  google_mlkit_commons: ^0.8.1        # Tambahkan ini secara eksplisit jika perlu
+
   # State Management & Icons
-  cupertino_icons: ^1.0.6
-  google_fonts: ^6.1.0
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.2.1
   intl: ^0.19.0
-  provider: ^6.1.1 # Note: Kamu pakai Provider atau GetX? Di kodingan sebelumnya kita bahas GetX.
+  provider: ^6.1.2
   
   # Persistence
   csv: ^6.0.0
-  share_plus: ^7.2.2
-  shared_preferences: ^2.2.2
-  path_provider: ^2.1.2
+  share_plus: ^10.1.0
+  shared_preferences: ^2.3.2
+  path_provider: ^2.1.5
   
   # UI & Charts
-  fl_chart: ^1.1.1
-  percent_indicator: ^4.2.5
+  fl_chart: ^0.70.0 # Versi terbaru lebih stabil dengan Flutter 3.x
+  percent_indicator: ^4.2.3
   
   # Calculator Logic
-  math_expressions: ^2.4.0
+  math_expressions: ^2.6.0
 
   # Utilities
-  uuid: ^4.2.1
+  uuid: ^4.5.1
 
 dev_dependencies:
   flutter_test:

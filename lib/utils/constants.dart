@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/material.dart';
 
 class AppIcons {
   static const Map<String, IconData> iconMapping = {

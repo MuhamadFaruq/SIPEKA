@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/services.dart';
 import '../utils/formatters.dart'; 
-import '../utils/constants.dart'; // Pastikan AppIcons ada di sini
+// Pastikan AppIcons ada di sini
 
 class WishlistScreen extends StatefulWidget {
   const WishlistScreen({super.key});
