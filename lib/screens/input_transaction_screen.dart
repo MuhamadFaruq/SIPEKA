@@ -11,6 +11,53 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter/services.dart';
 import '../utils/ocr_helper.dart';
 
+class MyTransactionPage extends StatefulWidget {
+  @override
+  _MyTransactionPageState createState() => _MyTransactionPageState();
+}
+
+class _MyTransactionPageState extends State<MyTransactionPage> {
+  final ImagePicker picker = ImagePicker(); // Inisialisasi picker
+
+  // 2. Taruh kodenya di dalam fungsi asinkron seperti ini
+  Future<void> _getImageFromCamera() async {
+    try {
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 50,
+        maxWidth: 1080, // Resolusi aman untuk Samsung S21 FE
+      );
+
+      if (image != null) {
+        // Panggil fungsi OCR kamu di sini
+        _processOCR(image); 
+      }
+    } catch (e) {
+      print("Error saat mengambil gambar: $e");
+      // Opsional: Berikan feedback ke user lewat SnackBar
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Gagal mengambil gambar: $e")),
+      );
+    }
+  }
+
+  // Fungsi OCR kamu
+  Future<void> _processOCR(XFile image) async {
+    // Logika pemrosesan teks ML Kit kamu di sini...
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      // ... UI SIPEKA ...
+      floatingActionButton: FloatingActionButton(
+        onPressed: _getImageFromCamera, // 3. Panggil fungsinya di sini
+        child: Icon(Icons.camera_alt),
+      ),
+    );
+  }
+}
+
 class InputTransactionScreen extends StatefulWidget {
   final String? initialCategory;
   final String? initialAmount;
@@ -501,62 +548,76 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
 
   void _processScan() async {
     final picker = ImagePicker();
-    // 1. Ambil Foto menggunakan Kamera Samsung S21 FE kamu
-    final XFile? image = await picker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 50, // Kompres sedikit agar proses OCR lebih cepat
-    );
-
-    if (image != null) {
-      // 2. Langkah UX: Cropping agar OCR fokus pada angka TOTAL saja
-      final croppedFile = await ImageCropper().cropImage(
-        sourcePath: image.path,
-        uiSettings: [
-          AndroidUiSettings(
-            toolbarTitle: 'Fokuskan pada Total Belanja',
-            toolbarColor: startBlue,
-            toolbarWidgetColor: Colors.white,
-            initAspectRatio: CropAspectRatioPreset.original,
-            lockAspectRatio: false,
-          ),
-          IOSUiSettings(
-            title: 'Fokuskan pada Total Belanja',
-          ),
-        ],
+    
+    try {
+      // 1. Ambil Gambar dengan Proteksi Memori (maxWidth & imageQuality)
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 50, 
+        maxWidth: 1080,  
+        maxHeight: 1920, 
       );
 
-      if (croppedFile != null) {
-        // Tampilkan Loading Indicator (Opsional tapi bagus untuk UX)
-        _showLoadingDialog();
+      if (image != null) {
+        // 2. Cropping (Bisa juga dibungkus try-catch jika ingin lebih aman)
+        final croppedFile = await ImageCropper().cropImage(
+          sourcePath: image.path,
+          uiSettings: [
+            AndroidUiSettings(
+              toolbarTitle: 'Fokuskan pada Total Belanja',
+              toolbarColor: startBlue,
+              toolbarWidgetColor: Colors.white,
+              initAspectRatio: CropAspectRatioPreset.original,
+              lockAspectRatio: false,
+            ),
+            IOSUiSettings(
+              title: 'Fokuskan pada Total Belanja',
+            ),
+          ],
+        );
 
-        // 3. Jalankan OCR pada gambar hasil crop
-        double? result = await OCRHelper.extractTotal(croppedFile.path);
-        
-        if (mounted) Navigator.pop(context); // Tutup loading
+        if (croppedFile != null) {
+          _showLoadingDialog();
 
-        if (result != null && result > 0) {
-          HapticFeedback.lightImpact();
-          setState(() {
-            // Update nominal secara otomatis
-            _inputAmount = result.toInt().toString();
-            _type = 'Pengeluaran'; 
-          });
+          // 3. Jalankan OCR
+          double? result = await OCRHelper.extractTotal(croppedFile.path);
           
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text("Berhasil mendeteksi: ${_formatCurrency(_inputAmount)}"),
-              backgroundColor: startBlue,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Gagal mendeteksi angka. Coba foto lebih tegak dan terang."),
-              backgroundColor: Colors.orange,
-            ),
-          );
+          if (mounted) Navigator.pop(context); // Tutup loading
+
+          if (result != null && result > 0) {
+            HapticFeedback.lightImpact();
+            setState(() {
+              _inputAmount = result.toInt().toString();
+              _type = 'Pengeluaran'; 
+            });
+            
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text("Berhasil mendeteksi: ${_formatCurrency(_inputAmount)}"),
+                backgroundColor: startBlue,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Gagal mendeteksi angka. Coba foto lebih tegak dan terang."),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
         }
+      }
+    } catch (e) {
+      // MENANGKAP ERROR JIKA KAMERA CRASH
+      print("Error Kamera/OCR: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Ups! Kamera bermasalah: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
