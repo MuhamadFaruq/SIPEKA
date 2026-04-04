@@ -2,22 +2,28 @@ import 'dart:io';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 
 class OCRHelper {
-  static Future<double?> extractTotal(String imagePath) async {
+    static Future<double?> extractTotal(String imagePath) async {
     // 1. Validasi File
     final file = File(imagePath);
     if (!await file.exists()) return null;
 
+    // JEDA KRUSIAL: Kasih napas 500ms buat sistem Android setelah kembali dari kamera/crop
+    await Future.delayed(const Duration(milliseconds: 500));
+
     final inputImage = InputImage.fromFilePath(imagePath);
-    final textRecognizer = TextRecognizer();
+    
+    // Gunakan Instance sekali pakai yang hati-hati
+    final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
     
     try {
-      // Baris ini yang paling berat dan sering bikin crash jika gambar > 5MB
+      // Proses ini yang memakan RAM paling besar
       final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
 
       double? maxAmount;
+      // Pakai karakter pemisah baris agar Regex tidak bingung
       String fullText = recognizedText.text.toUpperCase();
       
-      // Regex kamu sudah bagus, kita pertahankan
+      // Regex Pertahankan milikmu, sudah oke
       RegExp totalRegex = RegExp(r"(TOTAL|BAYAR|JUMLAH|DUE|AMOUNT)[\s\w]*[:=]*[\s]*([\d\.,]{3,})");
       Iterable<Match> matches = totalRegex.allMatches(fullText);
       List<double> foundAmounts = [];
@@ -30,13 +36,13 @@ class OCRHelper {
         }
       }
 
-      // Fallback
+      // Fallback jika kata kunci tidak ketemu
       if (foundAmounts.isEmpty) {
         RegExp genericAmount = RegExp(r"([\d\.,]{4,})");
         Iterable<Match> allMatches = genericAmount.allMatches(fullText);
         for (var m in allMatches) {
           double? parsed = _parseStringAmount(m.group(0)!);
-          // Filter angka masuk akal untuk pengeluaran harian
+          // Filter: angka di atas 500 perak dan di bawah 5 juta
           if (parsed != null && parsed > 500 && parsed < 5000000) { 
             foundAmounts.add(parsed);
           }
@@ -44,6 +50,7 @@ class OCRHelper {
       }
 
       if (foundAmounts.isNotEmpty) {
+        // Ambil angka terbesar (asumsi total belanja adalah angka paling besar di struk)
         maxAmount = foundAmounts.reduce((curr, next) => curr > next ? curr : next);
       }
 
@@ -52,8 +59,8 @@ class OCRHelper {
       print("Error OCR SIPEKA: $e");
       return null;
     } finally {
-      // WAJIB ditutup agar tidak memory leak
-      await textRecognizer.close();
+      // Tutup segera
+      textRecognizer.close();
     }
   }
 

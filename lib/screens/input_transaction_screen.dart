@@ -12,6 +12,8 @@ import 'package:flutter/services.dart';
 import '../utils/ocr_helper.dart';
 
 class MyTransactionPage extends StatefulWidget {
+  const MyTransactionPage({super.key});
+
   @override
   _MyTransactionPageState createState() => _MyTransactionPageState();
 }
@@ -52,7 +54,7 @@ class _MyTransactionPageState extends State<MyTransactionPage> {
       // ... UI SIPEKA ...
       floatingActionButton: FloatingActionButton(
         onPressed: _getImageFromCamera, // 3. Panggil fungsinya di sini
-        child: Icon(Icons.camera_alt),
+        child: const Icon(Icons.camera_alt),
       ),
     );
   }
@@ -85,9 +87,13 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
   final Color colorExpense = const Color(0xFFFF5252);
   final Color colorIncome = const Color(0xFF00C853);
 
+  // 1. Tambahkan ini di dalam class State
   @override
   void initState() {
     super.initState();
+    // Cek apakah ada data yang tertinggal setelah crash kamera
+    checkLostData();
+    
     if (widget.initialCategory != null) {
       _selectedCategory = widget.initialCategory!;
       _type = 'Pengeluaran'; 
@@ -95,6 +101,26 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
     if (widget.initialAmount != null) {
       _inputAmount = widget.initialAmount!;
     }
+  }
+
+  // 2. Fungsi untuk mengambil data yang "hilang" tadi
+  Future<void> checkLostData() async {
+    final ImagePicker picker = ImagePicker();
+    final LostDataResponse response = await picker.retrieveLostData();
+    if (response.isEmpty) return;
+    
+    if (response.file != null) {
+      // Jika ada file yang terselamatkan, langsung proses scan
+      _processImageResult(response.file!);
+    } else {
+      print("Error Lost Data: ${response.exception?.code}");
+    }
+  }
+
+  // 3. Pisahkan logika pemrosesan agar bisa dipanggil dari mana saja
+  void _processImageResult(XFile image) async {
+    // Pindahkan seluruh logika ImageCropper dan OCRHelper ke sini
+    // (Logika yang sebelumnya ada di dalam _processScan setelah "if (image != null)")
   }
 
   @override
