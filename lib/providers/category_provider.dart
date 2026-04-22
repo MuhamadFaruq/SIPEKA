@@ -1,18 +1,22 @@
 import 'package:flutter/foundation.dart';
 import '../models/category.dart' as models;
 import '../utils/storage.dart';
+// import '../services/sync_service.dart'; // [KOMENTAR] Firebase dinonaktifkan
 
 class CategoryProvider with ChangeNotifier {
   List<models.Category> _categories = [];
-
+  
+  // [KOMENTAR] Nonaktifkan SyncService untuk sementara
+  // final SyncService _syncService = SyncService(); 
+  
   List<models.Category> get categories => List.unmodifiable(_categories);
 
-  // Get categories by type
+  // Helper untuk memisahkan kategori berdasarkan tipe (Income/Expense)
   List<models.Category> getCategoriesByType(String type) {
     return _categories.where((c) => c.type == type).toList();
   }
 
-  // Get category by ID
+  // Ambil kategori berdasarkan ID
   models.Category? getCategoryById(String id) {
     try {
       return _categories.firstWhere((c) => c.id == id);
@@ -21,12 +25,11 @@ class CategoryProvider with ChangeNotifier {
     }
   }
 
-  // Load categories from storage
+  // Load categories from storage (SQFlite / Local Storage)
   Future<void> loadCategories() async {
     try {
       final jsonList = await Storage.loadCategories();
       if (jsonList.isEmpty) {
-        // Initialize with default categories
         await _initializeDefaultCategories();
       } else {
         _categories = jsonList.map((json) => models.Category.fromJson(json)).toList();
@@ -38,7 +41,65 @@ class CategoryProvider with ChangeNotifier {
     }
   }
 
-  // Initialize default categories
+  // --- CRUD FUNCTIONS (MURNI LOKAL) ---
+
+  Future<void> addCategory(models.Category category) async {
+    _categories.add(category);
+    await _saveCategories();
+    // _syncCloud(); // [KOMENTAR] Tidak sinkron ke Firebase
+    notifyListeners();
+  }
+
+  Future<void> updateCategory(models.Category updatedCategory) async {
+    final index = _categories.indexWhere((c) => c.id == updatedCategory.id);
+    if (index == -1) return;
+    
+    _categories[index] = updatedCategory;
+    await _saveCategories();
+    // _syncCloud(); // [KOMENTAR] Tidak sinkron ke Firebase
+    notifyListeners();
+  }
+
+  Future<void> deleteCategory(String categoryId) async {
+    _categories.removeWhere((c) => c.id == categoryId);
+    await _saveCategories();
+    // _syncCloud(); // [KOMENTAR] Tidak sinkron ke Firebase
+    notifyListeners();
+  }
+
+  // --- FUNGSI RESTORE (NONAKTIF) ---
+  Future<void> restoreCategoriesFromCloud() async {
+    // [KOMENTAR] Fitur cloud dimatikan sementara
+    debugPrint("Fitur restore cloud sedang dinonaktifkan.");
+    /*
+    try {
+      final List<models.Category> cloudCats = await _syncService.getCategoriesFromCloud();
+      if (cloudCats.isNotEmpty) {
+        _categories = cloudCats;
+        await _saveCategories(); 
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint("Gagal restore kategori: $e");
+    }
+    */
+  }
+
+  // [KOMENTAR] Fungsi sinkronisasi dimatikan
+  void _syncCloud() {
+    /*
+    _syncService.syncCategories(_categories).catchError((e) {
+      debugPrint("Gagal sinkron kategori ke cloud: $e");
+    });
+    */
+  }
+
+  Future<void> _saveCategories() async {
+    final jsonList = _categories.map((c) => c.toJson()).toList();
+    await Storage.saveCategories(jsonList);
+  }
+
+  // Initialize default categories (Data awal saat aplikasi pertama diinstal)
   Future<void> _initializeDefaultCategories() async {
     _categories = [
       // Expense Categories
@@ -103,41 +164,9 @@ class CategoryProvider with ChangeNotifier {
     await _saveCategories();
   }
 
-  // Add category
-  Future<void> addCategory(models.Category category) async {
-    _categories.add(category);
-    await _saveCategories();
-    notifyListeners();
-  }
-
-  // Update category
-  Future<void> updateCategory(models.Category updatedCategory) async {
-    final index = _categories.indexWhere((c) => c.id == updatedCategory.id);
-    if (index == -1) return;
-    
-    _categories[index] = updatedCategory;
-    await _saveCategories();
-    notifyListeners();
-  }
-
-  // Delete category
-  Future<void> deleteCategory(String categoryId) async {
-    _categories.removeWhere((c) => c.id == categoryId);
-    await _saveCategories();
-    notifyListeners();
-  }
-
   // Check if category is used in transactions
   bool isCategoryUsed(String categoryId) {
-    // This will be checked in the UI layer by querying TransactionProvider
-    // For now, return false to allow deletion
+    // Logika ini biasanya mengecek ke TransactionProvider
     return false;
   }
-
-  // Save categories to storage
-  Future<void> _saveCategories() async {
-    final jsonList = _categories.map((c) => c.toJson()).toList();
-    await Storage.saveCategories(jsonList);
-  }
 }
-

@@ -10,55 +10,8 @@ import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/services.dart';
 import '../utils/ocr_helper.dart';
-
-class MyTransactionPage extends StatefulWidget {
-  const MyTransactionPage({super.key});
-
-  @override
-  _MyTransactionPageState createState() => _MyTransactionPageState();
-}
-
-class _MyTransactionPageState extends State<MyTransactionPage> {
-  final ImagePicker picker = ImagePicker(); // Inisialisasi picker
-
-  // 2. Taruh kodenya di dalam fungsi asinkron seperti ini
-  Future<void> _getImageFromCamera() async {
-    try {
-      final XFile? image = await picker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 50,
-        maxWidth: 1080, // Resolusi aman untuk Samsung S21 FE
-      );
-
-      if (image != null) {
-        // Panggil fungsi OCR kamu di sini
-        _processOCR(image); 
-      }
-    } catch (e) {
-      print("Error saat mengambil gambar: $e");
-      // Opsional: Berikan feedback ke user lewat SnackBar
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Gagal mengambil gambar: $e")),
-      );
-    }
-  }
-
-  // Fungsi OCR kamu
-  Future<void> _processOCR(XFile image) async {
-    // Logika pemrosesan teks ML Kit kamu di sini...
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      // ... UI SIPEKA ...
-      floatingActionButton: FloatingActionButton(
-        onPressed: _getImageFromCamera, // 3. Panggil fungsinya di sini
-        child: const Icon(Icons.camera_alt),
-      ),
-    );
-  }
-}
+import '../utils/notifications.dart'; 
+import '../providers/theme_provider.dart';
 
 class InputTransactionScreen extends StatefulWidget {
   final String? initialCategory;
@@ -78,7 +31,8 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
   String _inputAmount = '0';
   String _type = 'Pengeluaran'; 
   String _selectedWallet = 'Dompet'; 
-  String _selectedCategory = 'Lainnya'; 
+  // --- MODIFIKASI 1: Set default ke null agar user dipaksa memilih ---
+  String? _selectedCategory;
   DateTime _selectedDate = DateTime.now();
   final TextEditingController _noteController = TextEditingController();
 
@@ -87,11 +41,9 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
   final Color colorExpense = const Color(0xFFFF5252);
   final Color colorIncome = const Color(0xFF00C853);
 
-  // 1. Tambahkan ini di dalam class State
   @override
   void initState() {
     super.initState();
-    // Cek apakah ada data yang tertinggal setelah crash kamera
     checkLostData();
     
     if (widget.initialCategory != null) {
@@ -103,38 +55,33 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
     }
   }
 
-  // 2. Fungsi untuk mengambil data yang "hilang" tadi
+  // --- FIX 4: Pastikan fungsi retrieve data dipanggil di initState ---
   Future<void> checkLostData() async {
-    final ImagePicker picker = ImagePicker();
-    final LostDataResponse response = await picker.retrieveLostData();
-    if (response.isEmpty) return;
-    
-    if (response.file != null) {
-      // Jika ada file yang terselamatkan, langsung proses scan
+    try {
+      final LostDataResponse response = await _picker.retrieveLostData();
+      if (response.isEmpty || response.file == null) return;
+      
+      // Jika ada data yang tertinggal akibat app di-kill oleh sistem
       _processImageResult(response.file!);
-    } else {
-      print("Error Lost Data: ${response.exception?.code}");
+    } catch (e) {
+      debugPrint("Lost Data Error: $e");
     }
-  }
-
-  // 3. Pisahkan logika pemrosesan agar bisa dipanggil dari mana saja
-  void _processImageResult(XFile image) async {
-    // Pindahkan seluruh logika ImageCropper dan OCRHelper ke sini
-    // (Logika yang sebelumnya ada di dalam _processScan setelah "if (image != null)")
   }
 
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<TransactionProvider>(context);
     final budgetProvider = Provider.of<BudgetProvider>(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     
     double dompetBalance = _calculateBalance(provider.transactions, 'Dompet');
     double eWalletBalance = _calculateBalance(provider.transactions, 'E-Wallet');
 
     return Scaffold(
-      backgroundColor: const Color(0xFFE9E9E9),
+      // --- FIX: Background dinamis ---
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text("Tambah Transaksi", style: GoogleFonts.nunito(fontWeight: FontWeight.bold)),
+        title: Text("Tambah Transaksi", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, color: Colors.white)),
         flexibleSpace: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -147,9 +94,8 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
-          // Tombol Scan Nota Baru
           IconButton(
-            icon: const Icon(Icons.document_scanner_outlined), // Ikon scan
+            icon: const Icon(Icons.document_scanner_outlined),
             tooltip: "Scan Nota",
             onPressed: () => _processScan(),
           ),
@@ -166,111 +112,123 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               children: [
                 const SizedBox(height: 10),
-                _buildHeaderNominal(), 
+                _buildHeaderNominal(context), 
                 const SizedBox(height: 20),
-                _buildTypeSelector(),
+                _buildTypeSelector(context),
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    _buildWalletCard("Dompet", dompetBalance, Icons.wallet, _selectedWallet == 'Dompet'),
+                    _buildWalletCard(context, "Dompet", dompetBalance, Icons.wallet, _selectedWallet == 'Dompet'),
                     const SizedBox(width: 12),
-                    _buildWalletCard("E-Wallet", eWalletBalance, Icons.credit_card, _selectedWallet == 'E-Wallet'),
+                    _buildWalletCard(context, "E-Wallet", eWalletBalance, Icons.credit_card, _selectedWallet == 'E-Wallet'),
                   ],
                 ),
                 const SizedBox(height: 16),
                 Text(_type == 'Pengeluaran' ? "Kategori Pengeluaran" : "Sumber Pemasukan", 
-                    style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black54)),
+                    style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 14, color: isDark ? Colors.white70 : Colors.black54)),
                 const SizedBox(height: 8),
                 
-                // VALIDASI: Tampilkan pesan jika pengeluaran tapi belum ada anggaran
-                // Cari bagian ini di dalam ListView:
                 if (_type == 'Pengeluaran' && budgetProvider.budgets.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 20),
-                    child: InkWell( // Bungkus dengan InkWell agar bisa diklik
-                      onTap: () {
-                        // TUTUP layar input dan KIRIM data index ke-2 (Anggaran)
-                        Navigator.pop(context, 2); 
-                      },
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.redAccent.withOpacity(0.5)),
-                        ),
-                        child: Column(
-                          children: [
-                            const Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
-                            const SizedBox(height: 8),
-                            Text(
-                              "Belum ada anggaran. Klik di sini untuk membuat anggaran terlebih dahulu!",
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.nunito(
-                                color: Colors.redAccent, 
-                                fontSize: 13, 
-                                fontWeight: FontWeight.bold
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  )
+                  _buildEmptyBudgetWarning()
                 else
-                  _buildDynamicCategories(),
+                  _buildDynamicCategories(context),
 
                 const SizedBox(height: 16),
                 TextField(
                   controller: _noteController,
+                  style: GoogleFonts.nunito(color: Theme.of(context).textTheme.bodyLarge?.color),
                   decoration: InputDecoration(
                     hintText: "Catatan (Opsional)",
-                    fillColor: Colors.white,
+                    hintStyle: const TextStyle(color: Colors.grey),
+                    fillColor: Theme.of(context).cardColor,
                     filled: true,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                   ),
                 ),
                 const SizedBox(height: 12),
-                InkWell(
-                  onTap: () => _selectDate(context),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12), 
-                      border: Border.all(color: Colors.grey.shade300)
-                    ),
-                    child: Center(
-                      child: Text(DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(_selectedDate),
-                        style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87)),
-                    ),
-                  ),
-                ),
+                _buildDatePicker(context),
                 const SizedBox(height: 20),
               ],
             ),
           ),
-          _buildSimpleNumpad(),
+          _buildSimpleNumpad(context),
         ],
       ),
     );
   }
 
-  Widget _buildHeaderNominal() {
+  // --- COMPONENT HELPERS ---
+
+  Widget _buildEmptyBudgetWarning() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      child: InkWell(
+        onTap: () => Navigator.pop(context, 2), 
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.red.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.redAccent.withOpacity(0.5)),
+          ),
+          child: Column(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+              const SizedBox(height: 8),
+              Text(
+                "Belum ada anggaran. Klik di sini untuk membuat anggaran terlebih dahulu!",
+                textAlign: TextAlign.center,
+                style: GoogleFonts.nunito(color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDatePicker(BuildContext context) {
+    return InkWell(
+      onTap: () => _selectDate(context),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(12), 
+          border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? Colors.white10 : Colors.grey.shade300)
+        ),
+        child: Center(
+          child: Text(DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(_selectedDate),
+            style: GoogleFonts.nunito(
+              fontWeight: FontWeight.bold, 
+              fontSize: 15, 
+              color: Theme.of(context).textTheme.bodyLarge?.color
+            )),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderNominal(BuildContext context) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))]
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).brightness == Brightness.dark ? Colors.transparent : Colors.black.withOpacity(0.05), 
+            blurRadius: 10, offset: const Offset(0, 5)
+          )
+        ]
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("Berapa Nih?", style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54)),
+          Text("Berapa Nih?", style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey)),
           const SizedBox(height: 5),
           Center(
             child: Text(_formatCurrency(_inputAmount),
@@ -281,30 +239,35 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
     );
   }
 
-  Widget _buildSimpleNumpad() {
+  Widget _buildSimpleNumpad(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 15, 20, 30),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: const BorderRadius.only(topLeft: Radius.circular(30), topRight: Radius.circular(30)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))],
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).brightness == Brightness.dark ? Colors.black26 : Colors.black.withOpacity(0.05), 
+            blurRadius: 10, offset: const Offset(0, -5)
+          )
+        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildNumRow(['1', '2', '3']),
+          _buildNumRow(context, ['1', '2', '3']),
           const SizedBox(height: 10),
-          _buildNumRow(['4', '5', '6']),
+          _buildNumRow(context, ['4', '5', '6']),
           const SizedBox(height: 10),
-          _buildNumRow(['7', '8', '9']),
+          _buildNumRow(context, ['7', '8', '9']),
           const SizedBox(height: 10),
           Row(
             children: [
-              _buildNumKey('000'), const SizedBox(width: 10),
-              _buildNumKey('0'), const SizedBox(width: 10),
+              _buildNumKey(context, '000'), const SizedBox(width: 10),
+              _buildNumKey(context, '0'), const SizedBox(width: 10),
               Expanded(
                 child: Material(
-                  color: Colors.red[50],
+                  color: Colors.red.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(12),
@@ -341,18 +304,20 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
     );
   }
 
-  Widget _buildNumRow(List<String> keys) {
+  Widget _buildNumRow(BuildContext context, List<String> keys) {
     return Row(children: [
-      _buildNumKey(keys[0]), const SizedBox(width: 10),
-      _buildNumKey(keys[1]), const SizedBox(width: 10),
-      _buildNumKey(keys[2])
+      _buildNumKey(context, keys[0]), const SizedBox(width: 10),
+      _buildNumKey(context, keys[1]), const SizedBox(width: 10),
+      _buildNumKey(context, keys[2])
     ]);
   }
 
-  Widget _buildNumKey(String key) {
+  Widget _buildNumKey(BuildContext context, String key) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Expanded(
       child: Material(
-        color: Colors.grey[50], borderRadius: BorderRadius.circular(12),
+        color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey[50], 
+        borderRadius: BorderRadius.circular(12),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: () => setState(() {
@@ -364,34 +329,30 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
           }),
           child: Container(
             height: 48, alignment: Alignment.center,
-            child: Text(key, style: GoogleFonts.nunito(fontSize: 20, fontWeight: FontWeight.bold)),
+            child: Text(key, style: GoogleFonts.nunito(
+              fontSize: 20, 
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).textTheme.bodyLarge?.color
+            )),
           ),
         ),
       ),
     );
   }
 
-  // --- FUNGSI KATEGORI DINAMIS (FIX ERROR & IKON MANUAL) ---
-  Widget _buildDynamicCategories() {
+  Widget _buildDynamicCategories(BuildContext context) {
     final budgetProvider = Provider.of<BudgetProvider>(context);
     List<Map<String, dynamic>> categoriesToShow = [];
 
     if (_type == 'Pengeluaran') {
-      if (budgetProvider.budgets.isNotEmpty) {
-        // Konversi anggaran menjadi list kategori dengan ikon manual
-        categoriesToShow = budgetProvider.budgets.map((b) {
-          return <String, dynamic>{
-            'icon': IconData(b.iconCode, fontFamily: 'MaterialIcons'),
-            'label': b.category,
-            'val': b.category
-          };
-        }).toList();
-
-      } else {
-        categoriesToShow = []; 
-      }
+      categoriesToShow = budgetProvider.budgets.map((b) {
+        return <String, dynamic>{
+          'icon': IconData(b.iconCode, fontFamily: 'MaterialIcons'),
+          'label': b.category,
+          'val': b.category
+        };
+      }).toList();
     } else {
-      // Kategori Pemasukan Statis
       categoriesToShow = [
         <String, dynamic>{'icon': Icons.work, 'label': 'Gaji', 'val': 'Gaji'},
         <String, dynamic>{'icon': Icons.card_giftcard, 'label': 'Hadiah', 'val': 'Hadiah'},
@@ -416,14 +377,23 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: isSelected ? startBlue : Colors.white, 
+                      color: isSelected ? startBlue : Theme.of(context).cardColor, 
                       shape: BoxShape.circle,
+                      // Tambahkan border merah tipis jika belum pilih agar user ngeh
+                      border: Border.all(
+                        color: _selectedCategory == null && _type == 'Pengeluaran' 
+                          ? Colors.redAccent.withOpacity(0.3) 
+                          : Colors.transparent
+                      ),
                       boxShadow: isSelected ? null : [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4)]
                     ),
                     child: Icon(cat['icon'] as IconData, color: isSelected ? Colors.white : Colors.grey, size: 20),
                   ),
                   const SizedBox(height: 4),
-                  Text(cat['label'] as String, style: GoogleFonts.nunito(fontSize: 10))
+                  Text(cat['label'] as String, style: GoogleFonts.nunito(
+                    fontSize: 10,
+                    color: Theme.of(context).textTheme.bodySmall?.color
+                  ))
                 ],
               ),
             ),
@@ -433,9 +403,12 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
     );
   }
 
-  Widget _buildTypeSelector() {
+  Widget _buildTypeSelector(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30)),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor, 
+        borderRadius: BorderRadius.circular(30)
+      ),
       child: Row(
         children: [
           _buildTypeButton("Pengeluaran", colorExpense, _type == 'Pengeluaran'),
@@ -450,7 +423,7 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
       child: GestureDetector(
         onTap: () => setState(() { 
           _type = label; 
-          _selectedCategory = label == 'Pengeluaran' ? 'Lainnya' : 'Gaji'; 
+          _selectedCategory = null; // Reset kategori saat ganti tipe
         }),
         child: AnimatedContainer(duration: const Duration(milliseconds: 200), padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(color: isSelected ? color : Colors.transparent, borderRadius: BorderRadius.circular(30)),
@@ -461,23 +434,27 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
     );
   }
 
-  Widget _buildWalletCard(String name, double balance, IconData icon, bool isSelected) {
+  Widget _buildWalletCard(BuildContext context, String name, double balance, IconData icon, bool isSelected) {
     return Expanded(
       child: GestureDetector(
         onTap: () => setState(() => _selectedWallet = name),
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.white, 
+            color: Theme.of(context).cardColor, 
             borderRadius: BorderRadius.circular(16), 
-            border: isSelected ? Border.all(color: startBlue, width: 2) : null
+            border: isSelected ? Border.all(color: startBlue, width: 2) : Border.all(color: Colors.white10)
           ),
           child: Row(
             children: [
               Icon(icon, color: isSelected ? startBlue : Colors.orange, size: 22),
               const SizedBox(width: 8),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                Text(name, style: GoogleFonts.nunito(
+                  fontWeight: FontWeight.bold, 
+                  fontSize: 13,
+                  color: Theme.of(context).textTheme.bodyLarge?.color
+                )),
                 Text(NumberFormat.compactCurrency(locale: 'id_ID', symbol: 'Rp').format(balance), style: const TextStyle(fontSize: 10, color: Colors.grey)),
               ]))
             ],
@@ -486,6 +463,8 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
       ),
     );
   }
+
+  // --- LOGIC FUNCTIONS ---
 
   double _calculateBalance(List<Transaction> transactions, String walletName) {
     double bal = 0;
@@ -513,7 +492,9 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
       firstDate: DateTime(2020), 
       lastDate: DateTime(2030), 
       builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(colorScheme: ColorScheme.light(primary: startBlue)), 
+        data: Theme.of(context).copyWith(
+          colorScheme: Theme.of(context).colorScheme.copyWith(primary: startBlue)
+        ), 
         child: child!
       )
     );
@@ -523,132 +504,115 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
   void _saveTransaction() {
     double amount = double.tryParse(_inputAmount) ?? 0;
 
-    // VALIDASI 1: Nominal masih nol
+    // --- AMBIL DATA NAMA DARI PROVIDER ---
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    String namaUser = themeProvider.userName;
+
     if (amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Nominalnya diisi dulu ya!"),
-          backgroundColor: Colors.orange,
-          behavior: SnackBarBehavior.floating,
-        ),
+      SipekaNotification.showWarning(context, "Nominalnya diisi dulu $namaUser!");
+      return;
+    }
+
+    // VALIDASI WAJIB PILIH KATEGORI
+    if (_selectedCategory == null) {
+      HapticFeedback.vibrate(); 
+      // --- SEKARANG PESANNYA DINAMIS ---
+      SipekaNotification.showWarning(
+        context, 
+        "Pilih kategori Pengeluaran dulu, $namaUser!"
       );
       return;
     }
 
-    // VALIDASI 2: Catatan/Title kosong (Opsional, tergantung keinginanmu)
-    if (_noteController.text.isEmpty && _selectedCategory == 'Lainnya') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Kasih keterangan dikit dong biar nggak bingung."),
-          backgroundColor: Colors.orange,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-
-    // Jika lolos validasi, baru simpan
     final newTx = Transaction(
       id: DateTime.now().toString(),
-      title: _noteController.text.isEmpty ? _selectedCategory : _noteController.text,
+      // Gunakan null check operator ! karena sudah divalidasi di atas
+      title: _noteController.text.isEmpty ? _selectedCategory! : _noteController.text,
       amount: amount,
       date: _selectedDate,
       type: _type == 'Pengeluaran' ? 'Expense' : 'Income',
-      category: _selectedCategory,
+      category: _selectedCategory!, 
       wallet: _selectedWallet,
     );
 
     Provider.of<TransactionProvider>(context, listen: false).addTransaction(newTx);
     
-    // FEEDBACK: Berhasil Simpan
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Mantap! Transaksi berhasil disimpan."),
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-
+    final mainContext = context;
     Navigator.pop(context);
+
+    Future.delayed(Duration.zero, () {
+      if (mainContext.mounted) {
+        SipekaNotification.showSuccess(mainContext, "Mantap! Transaksimu berhasil disimpan.");
+      }
+    });
   }
 
+  // --- FIX 1: Gunakan variabel picker global untuk konsistensi ---
+  final ImagePicker _picker = ImagePicker();
+
   void _processScan() async {
-    final picker = ImagePicker();
-    
     try {
-      // 1. Ambil Gambar dengan Proteksi Memori (maxWidth & imageQuality)
-      final XFile? image = await picker.pickImage(
+      // FIX 2: Tambahkan feedback getar agar user tahu proses dimulai
+      HapticFeedback.mediumImpact();
+      
+      final XFile? image = await _picker.pickImage(
         source: ImageSource.camera,
+        // FIX 3: Resolusi 1080p dengan kualitas 50% adalah "Sweet Spot"
+        // agar OCR tetap tajam tapi RAM tidak meledak
         imageQuality: 50, 
-        maxWidth: 1080,  
-        maxHeight: 1920, 
+        maxWidth: 1080, 
+        maxHeight: 1920,
       );
 
       if (image != null) {
-        // 2. Cropping (Bisa juga dibungkus try-catch jika ingin lebih aman)
-        final croppedFile = await ImageCropper().cropImage(
-          sourcePath: image.path,
-          uiSettings: [
-            AndroidUiSettings(
-              toolbarTitle: 'Fokuskan pada Total Belanja',
-              toolbarColor: startBlue,
-              toolbarWidgetColor: Colors.white,
-              initAspectRatio: CropAspectRatioPreset.original,
-              lockAspectRatio: false,
-            ),
-            IOSUiSettings(
-              title: 'Fokuskan pada Total Belanja',
-            ),
-          ],
-        );
-
-        if (croppedFile != null) {
-          _showLoadingDialog();
-
-          // 3. Jalankan OCR
-          double? result = await OCRHelper.extractTotal(croppedFile.path);
-          
-          if (mounted) Navigator.pop(context); // Tutup loading
-
-          if (result != null && result > 0) {
-            HapticFeedback.lightImpact();
-            setState(() {
-              _inputAmount = result.toInt().toString();
-              _type = 'Pengeluaran'; 
-            });
-            
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text("Berhasil mendeteksi: ${_formatCurrency(_inputAmount)}"),
-                backgroundColor: startBlue,
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text("Gagal mendeteksi angka. Coba foto lebih tegak dan terang."),
-                backgroundColor: Colors.orange,
-              ),
-            );
-          }
-        }
+        _processImageResult(image);
       }
     } catch (e) {
-      // MENANGKAP ERROR JIKA KAMERA CRASH
-      print("Error Kamera/OCR: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Ups! Kamera bermasalah: $e"),
-            backgroundColor: Colors.red,
-          ),
-        );
+      debugPrint("Error Camera: $e");
+      SipekaNotification.showWarning(context, "Kamera tidak bisa dibuka. Cek izin aplikasi.");
+    }
+  }
+
+  void _processImageResult(XFile image) async {
+    final croppedFile = await ImageCropper().cropImage(
+      sourcePath: image.path,
+      uiSettings: [ 
+        AndroidUiSettings(
+          toolbarTitle: 'Fokuskan pada Total Belanja',
+          toolbarColor: startBlue,
+          toolbarWidgetColor: Colors.white,
+          initAspectRatio: CropAspectRatioPreset.original,
+          lockAspectRatio: false,
+        ),
+        IOSUiSettings( 
+          title: 'Fokuskan pada Total Belanja',
+          doneButtonTitle: 'Selesai',
+          cancelButtonTitle: 'Batal',
+          aspectRatioLockEnabled: false,
+        ),
+      ],
+    );
+
+    if (croppedFile != null) {
+      _showLoadingDialog();
+      double? result = await OCRHelper.extractTotal(croppedFile.path);
+      
+      if (mounted) Navigator.pop(context); 
+
+      if (result != null && result > 0) {
+        HapticFeedback.lightImpact();
+        setState(() {
+          _inputAmount = result.toInt().toString();
+          _type = 'Pengeluaran'; 
+          _selectedCategory = null;
+        });
+        SipekaNotification.showSuccess(context, "Berhasil mendeteksi: ${_formatCurrency(_inputAmount)}");
+      } else {
+        SipekaNotification.showWarning(context, "Gagal mendeteksi angka. Coba foto ulang.");
       }
     }
   }
 
-  // Tambahkan helper dialog sederhana
   void _showLoadingDialog() {
     showDialog(
       context: context,

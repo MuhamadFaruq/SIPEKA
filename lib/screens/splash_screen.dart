@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:async'; 
-import 'package:shared_preferences/shared_preferences.dart'; // <--- Tambahkan ini
+import 'package:shared_preferences/shared_preferences.dart';
 import 'main_navigation.dart';
-import 'onboarding_screen.dart'; // <--- Tambahkan ini
+import 'onboarding_screen.dart';
+import 'pin_screen.dart';
+import 'pre_login_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -19,57 +21,62 @@ class _SplashScreenState extends State<SplashScreen> {
     _navigateToNext();
   }
 
-  // LOGIKA: Cek status Onboarding dari Memori HP
   void _navigateToNext() async {
-    // Tunggu sebentar agar logo sempat terlihat (misal 1.5 detik)
-    await Future.delayed(const Duration(milliseconds: 500));
+    await Future.delayed(const Duration(milliseconds: 800)); 
     
     if (!mounted) return;
 
     final prefs = await SharedPreferences.getInstance();
-    // Ambil status apakah onboarding sudah selesai
     final bool isCompleted = prefs.getBool('onboarding_completed') ?? false;
 
-    if (isCompleted) {
-      // Jika sudah kenalan, langsung ke Menu Utama
-      Navigator.pushReplacement(
-        context,
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) => const MainNavigation(), // atau OnboardingScreen()
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(opacity: animation, child: child);
-          },
-          transitionDuration: const Duration(milliseconds: 500),
-        ),
-      );
-    } else {
-      // Jika user baru, arahkan ke Onboarding/Kenalan Nama
+    if (!isCompleted) {
+      // Jika belum onboarding, ke onboarding
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+      );
+    } else {
+      // APAPUN kondisinya (pakai PIN atau tidak), arahkan ke PreLogin dulu
+      // Halaman PIN baru akan dipanggil di dalam PreLogin saat tombol 'Login' diklik
+      Navigator.pushReplacement(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => const PreLoginScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) => 
+              FadeTransition(opacity: animation, child: child),
+        ),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Gunakan warna primer biru SIPEKA agar konsisten
+    // Kita tetap pakai biru utama SIPEKA sebagai identitas brand
     const Color primaryBlue = Color(0xFF2972FF);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: primaryBlue,
+      // Jika mode gelap, kita buat birunya sedikit lebih deep agar tidak terlalu kontras saat dibuka malam hari
+      backgroundColor: isDark ? const Color(0xFF1A4BB3) : primaryBlue,
       body: Stack(
         children: [
           Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Logo SIPEKA
+                // Logo SIPEKA dengan efek glow tipis
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.15),
                     shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 20,
+                        spreadRadius: 5,
+                      )
+                    ],
                   ),
                   child: const Icon(
                     Icons.account_balance_wallet_rounded,
@@ -99,15 +106,19 @@ class _SplashScreenState extends State<SplashScreen> {
               ],
             ),
           ),
-          // Indikator Loading di bagian bawah
-          const Positioned(
-            bottom: 50,
+          // Indikator Loading
+          Positioned(
+            bottom: 60,
             left: 0,
             right: 0,
             child: Center(
-              child: CircularProgressIndicator(
-                color: Colors.white,
-                strokeWidth: 3,
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  color: Colors.white.withOpacity(0.5),
+                  strokeWidth: 2,
+                ),
               ),
             ),
           ),

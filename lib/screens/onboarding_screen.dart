@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/constants.dart';
 import '../widgets/custom_button.dart';
+import '../utils/notifications.dart'; 
 import 'main_navigation.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -17,18 +18,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   int _currentPage = 0;
   final TextEditingController _nameController = TextEditingController();
 
-  final List<OnboardingPage> _pages = [
-    OnboardingPage(
+  final List<OnboardingPageData> _pages = [
+    OnboardingPageData(
       icon: Icons.account_balance_wallet_rounded,
       title: 'Teman Keuangan Kamu',
       description: 'SIPEKA bukan bank yang ribet. Kami temen yang bantu kamu ngatur duit dengan cara yang gampang!',
     ),
-    OnboardingPage(
+    OnboardingPageData(
       icon: Icons.track_changes_rounded,
       title: 'Catat Semua Transaksi',
       description: 'Tinggal klik, langsung tercatat. Gak perlu ribet, gak perlu pusing. Semua transaksi kamu aman tersimpan.',
     ),
-    OnboardingPage(
+    OnboardingPageData(
       icon: Icons.insights_rounded,
       title: 'Lihat Pola Keuangan',
       description: 'Ketahui kemana aja duit kamu pergi. Jadi lebih bijak dalam mengatur keuangan sehari-hari.',
@@ -43,17 +44,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   void _nextPage() {
-    if (_currentPage < _pages.length) { // Mengacu pada index PageView
+    if (_currentPage < _pages.length) { 
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
     } else {
-      // Validasi: Pastikan nama diisi sebelum mulai
       if (_nameController.text.trim().isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Isi nama dulu ya biar kenal!")),
-        );
+        SipekaNotification.showWarning(context, "Isi nama dulu ya biar lebih akrab!");
       } else {
         _completeOnboarding();
       }
@@ -61,7 +59,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   void _skipOnboarding() {
-    _completeOnboarding();
+    _pageController.animateToPage(
+      _pages.length,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.ease,
+    );
   }
 
   Future<void> _completeOnboarding() async {
@@ -83,30 +85,33 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: AppColors.white,
-      // Pastikan ini TRUE (defaultnya memang true)
+      // --- FIX: Background dinamis ---
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       resizeToAvoidBottomInset: true, 
       body: SafeArea(
         child: Column(
           children: [
-            // Skip button
-            if (_currentPage < _pages.length - 1)
-              Align(
+            AnimatedOpacity(
+              opacity: _currentPage < _pages.length ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 200),
+              child: Align(
                 alignment: Alignment.topRight,
                 child: TextButton(
-                  onPressed: _skipOnboarding,
+                  onPressed: _currentPage < _pages.length ? _skipOnboarding : null,
                   child: Text(
                     'Lewati',
                     style: GoogleFonts.poppins(
-                      color: AppColors.textSecondary,
+                      color: isDark ? Colors.white70 : AppColors.textSecondary,
                       fontSize: 14,
                     ),
                   ),
                 ),
               ),
+            ),
             
-            // Page view
             Expanded(
               child: PageView.builder(
                 controller: _pageController,
@@ -115,23 +120,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     _currentPage = index;
                   });
                 },
-                itemCount: _pages.length + 1, // +1 for name input page
+                itemCount: _pages.length + 1, 
                 itemBuilder: (context, index) {
                   if (index < _pages.length) {
-                    return _buildOnboardingPage(_pages[index]);
+                    return _buildOnboardingPage(context, _pages[index]);
                   } else {
-                    return _buildNameInputPage();
+                    return _buildNameInputPage(context);
                   }
                 },
               ),
             ),
             
-            // Page indicator and button
             Padding(
               padding: const EdgeInsets.all(AppDimensions.spacingL),
               child: Column(
                 children: [
-                  // Page dots
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: List.generate(
@@ -142,8 +145,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         height: 8,
                         decoration: BoxDecoration(
                           color: _currentPage == index
-                              ? AppColors.primaryBlue
-                              : AppColors.neutralGrey,
+                              ? const Color(0xFF2972FF)
+                              : (isDark ? Colors.white24 : AppColors.neutralGrey),
                           borderRadius: BorderRadius.circular(4),
                         ),
                       ),
@@ -151,7 +154,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ),
                   const SizedBox(height: AppDimensions.spacingL),
                   
-                  // Next/Complete button
                   CustomButton(
                     text: _currentPage < _pages.length ? 'Lanjut' : 'Mulai',
                     onPressed: _nextPage,
@@ -165,7 +167,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  Widget _buildOnboardingPage(OnboardingPage page) {
+  Widget _buildOnboardingPage(BuildContext context, OnboardingPageData page) {
+      final isDark = Theme.of(context).brightness == Brightness.dark;
       return Padding(
         padding: const EdgeInsets.all(AppDimensions.spacingXL),
         child: Column(
@@ -175,13 +178,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               width: 120,
               height: 120,
               decoration: BoxDecoration(
-                color: AppColors.primaryBlue.withOpacity(0.1),
+                color: const Color(0xFF2972FF).withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                page.icon,
+              child: const Icon(
+                Icons.account_balance_wallet_rounded, // Pakai ikon dari data page jika tersedia
                 size: 60,
-                color: AppColors.primaryBlue,
+                color: Color(0xFF2972FF),
               ),
             ),
             const SizedBox(height: AppDimensions.spacingXXL),
@@ -190,7 +193,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               style: GoogleFonts.poppins(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
+                color: Theme.of(context).textTheme.bodyLarge?.color,
               ),
               textAlign: TextAlign.center,
             ),
@@ -199,7 +202,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               page.description,
               style: GoogleFonts.poppins(
                 fontSize: 16,
-                color: AppColors.textSecondary,
+                color: isDark ? Colors.white60 : AppColors.textSecondary,
                 height: 1.5,
               ),
               textAlign: TextAlign.center,
@@ -209,24 +212,24 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       );
     }
 
-    Widget _buildNameInputPage() {
-    return SingleChildScrollView( // <--- Tambahkan ini
+    Widget _buildNameInputPage(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(AppDimensions.spacingXL),
       child: Column(
-        // Hapus MainAxisAlignment.center agar tidak dipaksa ke tengah layar saat menyempit
         children: [
-          const SizedBox(height: AppDimensions.spacingXXL), // Beri jarak dari atas
+          const SizedBox(height: AppDimensions.spacingXXL),
           Container(
             width: 120,
             height: 120,
             decoration: BoxDecoration(
-              color: AppColors.primaryBlue.withOpacity(0.1),
+              color: const Color(0xFF2972FF).withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(
               Icons.person_rounded,
               size: 60,
-              color: AppColors.primaryBlue,
+              color: Color(0xFF2972FF),
             ),
           ),
           const SizedBox(height: AppDimensions.spacingXXL),
@@ -235,7 +238,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             style: GoogleFonts.poppins(
               fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
+              color: Theme.of(context).textTheme.bodyLarge?.color,
             ),
             textAlign: TextAlign.center,
           ),
@@ -244,37 +247,33 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             'Kita kenalan dulu, biar lebih akrab!',
             style: GoogleFonts.poppins(
               fontSize: 16,
-              color: AppColors.textSecondary,
+              color: isDark ? Colors.white60 : AppColors.textSecondary,
             ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: AppDimensions.spacingXXL),
           TextField(
             controller: _nameController,
-            // Menambahkan aksi ketika tombol "Done" ditekan
             onSubmitted: (_) => _nextPage(), 
             textInputAction: TextInputAction.done,
             autofocus: false, 
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              color: Theme.of(context).textTheme.bodyLarge?.color,
+            ),
             decoration: InputDecoration(
               hintText: 'Masukkan nama kamu',
-              hintStyle: GoogleFonts.poppins(
-                color: AppColors.textTertiary,
-              ),
+              hintStyle: GoogleFonts.poppins(color: Colors.grey),
               filled: true,
-              fillColor: AppColors.backgroundLight,
+              fillColor: Theme.of(context).cardColor, // FIX: Dinamis
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
                 borderSide: BorderSide.none,
               ),
               contentPadding: const EdgeInsets.all(AppDimensions.spacingM),
             ),
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              color: AppColors.textPrimary,
-            ),
             textCapitalization: TextCapitalization.words,
           ),
-          // Beri bantalan bawah agar TextField tidak mepet keyboard
           const SizedBox(height: AppDimensions.spacingXXL), 
         ],
       ),
@@ -282,15 +281,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 }
 
-class OnboardingPage {
+class OnboardingPageData {
   final IconData icon;
   final String title;
   final String description;
 
-  OnboardingPage({
+  OnboardingPageData({
     required this.icon,
     required this.title,
     required this.description,
   });
 }
-

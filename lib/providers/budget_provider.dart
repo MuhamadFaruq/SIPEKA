@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../models/budget_model.dart';
 import '../utils/database_helper.dart';
+// import '../services/sync_service.dart'; // [DIKOMENTARI] Sementara tidak digunakan
 
 class BudgetProvider with ChangeNotifier {
   List<Budget> _budgets = []; 
+  // final SyncService _syncService = SyncService(); // [DIKOMENTARI] Sementara tidak digunakan
 
   List<Budget> get budgets => _budgets;
 
@@ -11,49 +13,43 @@ class BudgetProvider with ChangeNotifier {
     return _budgets.map((b) => b.category).toList();
   }
 
-  // --- FUNGSI AMBIL DATA DARI DATABASE ---
+  // --- FUNGSI AMBIL DATA DARI DATABASE (LOCAL ONLY) ---
   Future<void> fetchAndSetBudgets() async {
     final dataList = await DatabaseHelper.instance.getAllBudgets();
     _budgets = dataList.map((item) => Budget(
       id: item['id'],
       category: item['category'],
-      limit: item['limit_amount'], // Menyesuaikan dengan kolom di database
+      limit: (item['limit_amount'] as num).toDouble(),
       iconCode: item['icon_code'],
-      // Note: usedAmount biasanya dihitung dinamis dari transaksi, 
-      // tapi jika kamu menyimpannya di model, kita set 0.0 dulu saat fetch
       usedAmount: 0.0, 
     )).toList();
     notifyListeners();
   }
 
-  // --- FUNGSI IKON UNTUK JALAN PINTAS ---
-  int getIconByCategory(String categoryName) {
-    final index = _budgets.indexWhere((b) => b.category == categoryName);
-    if (index != -1) {
-      return _budgets[index].iconCode;
-    }
-    return Icons.category.codePoint; 
+  Future<void> fetchBudgets() async {
+    await fetchAndSetBudgets();
   }
 
-  // --- CRUD FUNCTIONS (DENGAN SQLITE) ---
+  // --- CRUD FUNCTIONS (LOCAL DATABASE ONLY) ---
 
   Future<void> addBudget(Budget budget) async {
+    // Optimistic UI: Update UI dulu agar terasa cepat
     _budgets.add(budget);
     notifyListeners();
 
-    // Simpan ke SQLite
     await DatabaseHelper.instance.insertBudget({
       'id': budget.id,
       'category': budget.category,
       'limit_amount': budget.limit,
       'icon_code': budget.iconCode,
     });
+
+    // _syncCloud(); // [DIKOMENTARI] Skip sinkronisasi cloud
   }
 
   Future<void> updateBudget(String id, String newCategory, double newLimit, int iconCode) async {
     final index = _budgets.indexWhere((b) => b.id == id);
     if (index != -1) {
-      // Simpan nilai usedAmount yang lama agar tidak reset jadi 0 saat diupdate
       double currentUsed = _budgets[index].usedAmount;
 
       _budgets[index] = Budget(
@@ -61,7 +57,7 @@ class BudgetProvider with ChangeNotifier {
         category: newCategory, 
         limit: newLimit, 
         iconCode: iconCode,
-        usedAmount: currentUsed // Tetap gunakan nilai lama
+        usedAmount: currentUsed 
       );
       notifyListeners();
 
@@ -70,19 +66,62 @@ class BudgetProvider with ChangeNotifier {
         'limit_amount': newLimit,
         'icon_code': iconCode,
       });
+
+      // _syncCloud(); // [DIKOMENTARI] Skip sinkronisasi cloud
     }
   }
 
   Future<void> deleteBudget(String id) async {
     _budgets.removeWhere((b) => b.id == id);
     notifyListeners();
-
-    // Hapus di SQLite
     await DatabaseHelper.instance.deleteBudget(id);
-  }
-  
 
-  // Digunakan saat transaksi bertambah untuk update tampilan progress bar
+    // _syncCloud(); // [DIKOMENTARI] Skip sinkronisasi cloud
+  }
+
+  // --- FUNGSI RESTORE BUDGET (NON-AKTIF) ---
+  Future<void> restoreBudgetsFromCloud() async {
+    debugPrint("Fitur Cloud Restore sedang dinonaktifkan sementara.");
+    /* [DIKOMENTARI]
+    try {
+      final List<Budget> cloudBudgets = await _syncService.getBudgetsFromCloud();
+      if (cloudBudgets.isNotEmpty) {
+        await DatabaseHelper.instance.clearBudgetTable(); 
+
+        for (var b in cloudBudgets) {
+          await DatabaseHelper.instance.insertBudget({
+            'id': b.id,
+            'category': b.category,
+            'limit_amount': b.limit,
+            'icon_code': b.iconCode,
+          });
+        }
+        await fetchAndSetBudgets();
+      }
+    } catch (e) {
+      debugPrint("Gagal restore budget: $e");
+    }
+    */
+  }
+
+  // Helper Sync (NON-AKTIF)
+  void _syncCloud() {
+    /* [DIKOMENTARI]
+    _syncService.syncBudgets(_budgets).catchError((e) {
+      debugPrint("Gagal sinkron budget ke cloud: $e");
+    });
+    */
+  }
+
+  // --- FUNGSI UTILITAS LAINNYA ---
+  int getIconByCategory(String categoryName) {
+    final index = _budgets.indexWhere((b) => b.category == categoryName);
+    if (index != -1) {
+      return _budgets[index].iconCode;
+    }
+    return Icons.category.codePoint; 
+  }
+
   void addExpense(String budgetId, double amount) {
     final index = _budgets.indexWhere((b) => b.id == budgetId);
     if (index != -1) {
@@ -94,6 +133,6 @@ class BudgetProvider with ChangeNotifier {
   void clearAllData() {
     _budgets = []; 
     notifyListeners();
-    // Jika ingin hapus permanen semua di database, panggil fungsi delete khusus di DatabaseHelper
+    DatabaseHelper.instance.clearBudgetTable();
   }
 }

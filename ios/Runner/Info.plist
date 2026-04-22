@@ -49,5 +49,24 @@
 <string>Aplikasi butuh akses galeri untuk memilih gambar wishlist.</string>
 <key>NSCameraUsageDescription</key>
 <string>Aplikasi butuh akses kamera untuk memotret gambar wishlist.</string>
+<key>UIBackgroundModes</key>
+<array>
+    <string>remote-notification</string>
+</array>
+<key>NSUserNotificationUsageDescription</key>
+<string>SIPEKA butuh izin untuk mengingatkan kamu mencatat transaksi harian.</string>
+<key>NSFaceIDUsageDescription</key>
+<string>SIPEKA memerlukan FaceID untuk mengamankan data keuangan kamu.</string>
+
+<key>NSMicrophoneUsageDescription</key>
+<string>SIPEKA butuh akses mic untuk mencatat transaksi lewat suara.</string>
+<key>NSSpeechRecognitionUsageDescription</key>
+<string>SIPEKA butuh akses pengenal suara untuk memproses perintah kamu.</string>
+<key>NSCameraUsageDescription</key>
+<string>SIPEKA membutuhkan kamera untuk scan nota belanja.</string>
+
+<key>NSPhotoLibraryUsageDescription</key>
+<string>SIPEKA membutuhkan akses galeri untuk memilih foto nota.</string>
+
 </dict>
 </plist>

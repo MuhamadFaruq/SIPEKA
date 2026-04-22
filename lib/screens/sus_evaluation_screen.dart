@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/constants.dart';
 import '../widgets/custom_button.dart';
+import '../utils/notifications.dart'; // Import Notifikasi Atas SIPEKA
 
 class SUSEvaluationScreen extends StatefulWidget {
   const SUSEvaluationScreen({super.key});
@@ -15,6 +16,10 @@ class _SUSEvaluationScreenState extends State<SUSEvaluationScreen> {
   final PageController _pageController = PageController();
   int _currentQuestion = 0;
   final List<int> _answers = List.filled(10, -1); // 10 SUS questions
+
+  // Definisi warna gradasi agar konsisten dengan halaman lain
+  final Color startBlue = const Color(0xFF007AFF);
+  final Color endBlue = const Color(0xFF00479E);
 
   final List<Map<String, String>> _questions = [
     {
@@ -86,9 +91,7 @@ class _SUSEvaluationScreenState extends State<SUSEvaluationScreen> {
 
   void _nextQuestion() {
     if (_answers[_currentQuestion] == -1) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pilih jawaban dulu ya!')),
-      );
+      SipekaNotification.showWarning(context, "Pilih jawaban dulu ya!");
       return;
     }
 
@@ -115,26 +118,17 @@ class _SUSEvaluationScreenState extends State<SUSEvaluationScreen> {
     double totalScore = 0;
 
     for (int i = 0; i < _answers.length; i++) {
-      // Karena index i dimulai dari 0 (pertanyaan 1), maka:
-      // i genap = pertanyaan ganjil (1, 3, 5, 7, 9)
-      // i ganjil = pertanyaan genap (2, 4, 6, 8, 10)
-      
-      // Kita asumsikan pilihan i (0-4) dikonversi ke skala 1-5
       int response = _answers[i] + 1; 
 
       if (i % 2 == 0) {
-        // Pertanyaan Positif: Skor = (Jawaban - 1)
         totalScore += (response - 1);
       } else {
-        // Pertanyaan Negatif: Skor = (5 - Jawaban)
         totalScore += (5 - response);
       }
     }
 
-    // Hasil akhir adalah total skor dikali 2.5
     double finalSusScore = totalScore * 2.5;
 
-    // Simpan ke SharedPreferences
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble('sus_score', finalSusScore);
     await prefs.setBool('sus_completed', true);
@@ -142,12 +136,9 @@ class _SUSEvaluationScreenState extends State<SUSEvaluationScreen> {
 
     if (mounted) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Feedback terkirim! Skor SUS: ${finalSusScore.toStringAsFixed(1)}/100'),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-        ),
+      SipekaNotification.showSuccess(
+        context, 
+        'Feedback terkirim! Skor SUS: ${finalSusScore.toStringAsFixed(1)}/100'
       );
     }
   }
@@ -157,12 +148,22 @@ class _SUSEvaluationScreenState extends State<SUSEvaluationScreen> {
     return Scaffold(
       backgroundColor: AppColors.white,
       appBar: AppBar(
-        backgroundColor: AppColors.darkBlue,
+        // Sesuaikan Gradient dengan halaman lain
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [startBlue, endBlue],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
+        elevation: 0,
         title: Text(
           'Feedback Aplikasi',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+          style: GoogleFonts.nunito(fontWeight: FontWeight.bold, color: Colors.white),
         ),
-        centerTitle: false,
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: SafeArea(
         child: Column(
@@ -249,7 +250,7 @@ class _SUSEvaluationScreenState extends State<SUSEvaluationScreen> {
         children: [
           Text(
             'Pertanyaan ${index + 1} dari ${_questions.length}',
-            style: GoogleFonts.poppins(
+            style: GoogleFonts.nunito(
               fontSize: 14,
               color: AppColors.textSecondary,
             ),
@@ -257,7 +258,7 @@ class _SUSEvaluationScreenState extends State<SUSEvaluationScreen> {
           const SizedBox(height: AppDimensions.spacingXL),
           Text(
             question['question']!,
-            style: GoogleFonts.poppins(
+            style: GoogleFonts.nunito(
               fontSize: 24,
               fontWeight: FontWeight.bold,
               color: AppColors.textPrimary,
@@ -267,7 +268,7 @@ class _SUSEvaluationScreenState extends State<SUSEvaluationScreen> {
           const SizedBox(height: AppDimensions.spacingL),
           Text(
             isOddQuestion ? question['positive']! : question['negative']!,
-            style: GoogleFonts.poppins(
+            style: GoogleFonts.nunito(
               fontSize: 16,
               color: AppColors.textSecondary,
             ),
@@ -276,18 +277,21 @@ class _SUSEvaluationScreenState extends State<SUSEvaluationScreen> {
           const SizedBox(height: AppDimensions.spacingXXL),
           
           // Emoji buttons
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          Wrap( // Gunakan Wrap agar lebih aman di layar kecil
+            spacing: 10,
+            runSpacing: 10,
+            alignment: WrapAlignment.center,
             children: List.generate(
               _emojis.length,
               (i) => GestureDetector(
                 onTap: () => _selectAnswer(i),
-                child: Container(
-                  padding: const EdgeInsets.all(AppDimensions.spacingM),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15),
                   decoration: BoxDecoration(
                     color: _answers[index] == i
                         ? AppColors.primaryBlue.withOpacity(0.1)
-                        : Colors.transparent,
+                        : Colors.white,
                     borderRadius: BorderRadius.circular(AppDimensions.radiusLarge),
                     border: Border.all(
                       color: _answers[index] == i
@@ -295,19 +299,23 @@ class _SUSEvaluationScreenState extends State<SUSEvaluationScreen> {
                           : AppColors.neutralGrey,
                       width: _answers[index] == i ? 2 : 1,
                     ),
+                    boxShadow: _answers[index] == i ? [] : [
+                      BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))
+                    ]
                   ),
                   child: Column(
                     children: [
                       Text(
                         _emojis[i],
-                        style: const TextStyle(fontSize: 40),
+                        style: const TextStyle(fontSize: 35),
                       ),
-                      const SizedBox(height: AppDimensions.spacingXS),
+                      const SizedBox(height: 8),
                       Text(
                         _labels[i],
-                        style: GoogleFonts.poppins(
+                        style: GoogleFonts.nunito(
                           fontSize: 10,
-                          color: AppColors.textSecondary,
+                          fontWeight: _answers[index] == i ? FontWeight.bold : FontWeight.normal,
+                          color: _answers[index] == i ? AppColors.primaryBlue : AppColors.textSecondary,
                         ),
                       ),
                     ],
@@ -321,4 +329,3 @@ class _SUSEvaluationScreenState extends State<SUSEvaluationScreen> {
     );
   }
 }
-

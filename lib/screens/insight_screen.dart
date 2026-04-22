@@ -16,7 +16,6 @@ class InsightScreen extends StatefulWidget {
 }
 
 class _InsightScreenState extends State<InsightScreen> {
-  // Warna gradasi yang kamu tetapkan
   final Color startBlue = const Color(0xFF007AFF);
   final Color endBlue = const Color(0xFF00479E);
   
@@ -30,6 +29,7 @@ class _InsightScreenState extends State<InsightScreen> {
   Widget build(BuildContext context) {
     final transactionProvider = Provider.of<TransactionProvider>(context);
     final budgetProvider = Provider.of<BudgetProvider>(context); 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final allTransactions = transactionProvider.transactions;
 
     final monthTransactions = allTransactions.where((t) {
@@ -54,11 +54,9 @@ class _InsightScreenState extends State<InsightScreen> {
     double totalSavings = totalIncome - totalExpense;
 
     return Scaffold(
-      // 1. Warna Background E9E9E9
-      backgroundColor: const Color(0xFFE9E9E9),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor, // FIX: Dinamis
       appBar: AppBar(
-        title: Text("Laporan ${selectedDate.year}", style: GoogleFonts.nunito(fontWeight: FontWeight.bold)),
-        // 2. Header Gradasi
+        title: Text("Laporan ${selectedDate.year}", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, color: Colors.white)),
         flexibleSpace: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -75,11 +73,11 @@ class _InsightScreenState extends State<InsightScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            _buildMonthSelector(),
+            _buildMonthSelector(context),
             const SizedBox(height: 16),
             
-            // CHART TAHUNAN (Warna Kotak FFFFFF)
             _buildChartSection(
+              context,
               chartData[0] as List<FlSpot>, 
               chartData[1] as List<FlSpot>, 
               chartData[2] as List<FlSpot>, 
@@ -87,22 +85,21 @@ class _InsightScreenState extends State<InsightScreen> {
             ),
             
             const SizedBox(height: 16),
-            
-            // Summary Card (Gradasi Biru)
-            _buildSmartSummaryCard(monthTransactions, totalIncome, totalExpense, totalSavings),
-            
+            _buildSmartSummaryCard(context, monthTransactions, totalIncome, totalExpense, totalSavings),
             const SizedBox(height: 16),
 
             Align(
               alignment: Alignment.centerLeft,
               child: Text("Realisasi Anggaran", 
-                style: GoogleFonts.nunito(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+                style: GoogleFonts.nunito(
+                  fontSize: 18, 
+                  fontWeight: FontWeight.bold, 
+                  color: Theme.of(context).textTheme.bodyLarge?.color
+                )),
             ),
             const SizedBox(height: 12),
             
-            // 3. List Budget (Warna Kotak FFFFFF)
-            _buildBudgetList(monthTransactions, budgetProvider.budgets),
-            
+            _buildBudgetList(context, monthTransactions, budgetProvider.budgets),
             const SizedBox(height: 80),
           ],
         ),
@@ -110,11 +107,13 @@ class _InsightScreenState extends State<InsightScreen> {
     );
   }
 
-  Widget _buildBudgetList(List<Transaction> monthTransactions, List<Budget> budgets) {
+  Widget _buildBudgetList(BuildContext context, List<Transaction> monthTransactions, List<Budget> budgets) {
     return Container(
       padding: const EdgeInsets.all(16),
-      // Kotak Putih FFFFFF
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor, 
+        borderRadius: BorderRadius.circular(20)
+      ),
       child: budgets.isEmpty 
         ? Text("Belum ada anggaran", style: GoogleFonts.nunito(color: Colors.grey))
         : Column(
@@ -125,7 +124,7 @@ class _InsightScreenState extends State<InsightScreen> {
 
               return Column(
                 children: [
-                  _buildBudgetItem(budget.category, spentAmount, budget.limit),
+                  _buildBudgetItem(context, budget.category, spentAmount, budget.limit),
                   const SizedBox(height: 20)
                 ]
               );
@@ -134,21 +133,13 @@ class _InsightScreenState extends State<InsightScreen> {
     );
   }
 
-  Widget _buildBudgetItem(String category, double spent, double limit) {
-    // 1. Jika limit nol, tampilkan pesan khusus agar tidak error pembagian nol
-    if (limit == 0) {
-      return Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(12)),
-        child: Text("$category: Belum ada batas anggaran", style: GoogleFonts.nunito(color: Colors.grey[600], fontSize: 12)),
-      );
-    }
+  Widget _buildBudgetItem(BuildContext context, String category, double spent, double limit) {
+    if (limit == 0) return const SizedBox();
 
-    // 2. Hitung persentase
     double percentage = spent / limit;
     Color progressColor = percentage > 0.8 ? const Color(0xFFFF5252) : (percentage > 0.5 ? Colors.amber : const Color(0xFF00C853));
     double visualProgress = percentage > 1.0 ? 1.0 : percentage;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -156,18 +147,26 @@ class _InsightScreenState extends State<InsightScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(category, style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text(category, style: GoogleFonts.nunito(
+              fontWeight: FontWeight.bold, 
+              fontSize: 16,
+              color: Theme.of(context).textTheme.bodyLarge?.color
+            )),
             Text(
               NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(spent), 
-              style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 16)
+              style: GoogleFonts.nunito(
+                fontWeight: FontWeight.bold, 
+                fontSize: 16,
+                color: Theme.of(context).textTheme.bodyLarge?.color
+              )
             ),
           ],
         ),
         const SizedBox(height: 8),
         Stack(
           children: [
-            Container(height: 12, decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(10))),
-            LayoutBuilder(builder: (context, constraints) {
+            Container(height: 12, decoration: BoxDecoration(color: isDark ? Colors.white10 : Colors.grey[200], borderRadius: BorderRadius.circular(10))),
+            LayoutBuilder(builder: (ctx, constraints) {
               return Container(
                 width: constraints.maxWidth * visualProgress,
                 height: 12,
@@ -185,7 +184,6 @@ class _InsightScreenState extends State<InsightScreen> {
               style: GoogleFonts.nunito(color: Colors.grey, fontSize: 12)),
           ],
         ),
-        // 3. PESAN OVER BUDGET (Diletakkan di sini setelah variabel percentage ada)
         if (percentage > 1.0)
           Padding(
             padding: const EdgeInsets.only(top: 4),
@@ -198,7 +196,7 @@ class _InsightScreenState extends State<InsightScreen> {
     );
   }
 
-  Widget _buildSmartSummaryCard(List<Transaction> transactions, double income, double expense, double savings) {
+  Widget _buildSmartSummaryCard(BuildContext context, List<Transaction> transactions, double income, double expense, double savings) {
     int totalTx = transactions.length;
     String topCategory = "-";
     if (transactions.isNotEmpty) {
@@ -216,7 +214,6 @@ class _InsightScreenState extends State<InsightScreen> {
 
     return Container(
       padding: const EdgeInsets.all(20),
-      // 4. Summary Card Gradasi
       decoration: BoxDecoration(
         gradient: LinearGradient(colors: [startBlue, endBlue], begin: Alignment.topLeft, end: Alignment.bottomRight),
         borderRadius: BorderRadius.circular(20), 
@@ -262,6 +259,87 @@ class _InsightScreenState extends State<InsightScreen> {
     ]);
   }
 
+  Widget _buildMonthSelector(BuildContext context) {
+     return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor, 
+        borderRadius: BorderRadius.circular(30), 
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(icon: const Icon(Icons.arrow_back_ios, size: 16), onPressed: () => setState(() => selectedDate = DateTime(selectedDate.year, selectedDate.month - 1))),
+          Text(DateFormat('MMMM yyyy', 'id_ID').format(selectedDate), style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color)),
+          IconButton(icon: const Icon(Icons.arrow_forward_ios, size: 16), onPressed: () => setState(() => selectedDate = DateTime(selectedDate.year, selectedDate.month + 1))),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChartSection(BuildContext context, List<FlSpot> income, List<FlSpot> expense, List<FlSpot> savings, double maxY) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor, 
+        borderRadius: BorderRadius.circular(24), 
+        boxShadow: [BoxShadow(color: isDark ? Colors.transparent : Colors.grey.withOpacity(0.08), blurRadius: 20, offset: const Offset(0, 5))]
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [Icon(Icons.bar_chart_rounded, color: startBlue, size: 20), const SizedBox(width: 8), Text("Statistik Tahun ${selectedDate.year}", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).textTheme.bodyLarge?.color))]),
+          const SizedBox(height: 30),
+          SizedBox(
+            height: 220,
+            child: LineChart(
+              LineChartData(
+                gridData: FlGridData(
+                  show: true, 
+                  drawVerticalLine: false, 
+                  horizontalInterval: maxY / 5, 
+                  getDrawingHorizontalLine: (value) => FlLine(color: isDark ? Colors.white10 : Colors.grey[100], strokeWidth: 1)
+                ),
+                titlesData: FlTitlesData(
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 30, interval: 1, getTitlesWidget: (value, meta) {
+                    int index = value.toInt();
+                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+                    if (index >= 0 && index < 12 && index % 2 == 0) { 
+                         return Padding(padding: const EdgeInsets.only(top: 10.0), child: Text(months[index], style: GoogleFonts.nunito(fontSize: 10, fontWeight: FontWeight.bold, color: isDark ? Colors.white54 : Colors.black54)));
+                    }
+                    return const SizedBox();
+                  })),
+                ),
+                borderData: FlBorderData(show: false),
+                minX: 0, maxX: 11, minY: 0, maxY: maxY,
+                lineBarsData: [_buildLine(savings, colorSavings), _buildLine(expense, colorExpense), _buildLine(income, colorIncome)],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [_buildLegendItem("Masuk", colorIncome), const SizedBox(width: 16), _buildLegendItem("Keluar", colorExpense), const SizedBox(width: 16), _buildLegendItem("Sisa Duit", colorSavings)]),
+        ],
+      ),
+    );
+  }
+
+  LineChartBarData _buildLine(List<FlSpot> spots, Color color) {
+    return LineChartBarData(
+      spots: spots, isCurved: true, preventCurveOverShooting: true, color: color, barWidth: 3, isStrokeCapRound: true,
+      dotData: FlDotData(show: true, checkToShowDot: (spot, barData) => spot.y > 0, getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(radius: 4, color: Colors.white, strokeWidth: 2, strokeColor: color)),
+      belowBarData: BarAreaData(show: true, gradient: LinearGradient(colors: [color.withOpacity(0.2), color.withOpacity(0.0)], begin: Alignment.topCenter, end: Alignment.bottomCenter)),
+    );
+  }
+
+  Widget _buildLegendItem(String label, Color color) {
+    return Row(children: [Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)), const SizedBox(width: 5), Text(label, style: GoogleFonts.nunito(fontSize: 10, color: Colors.grey[600]))]);
+  }
+
   List<dynamic> _processChartData(List<Transaction> transactions) {
     List<double> monthlyIncome = List.filled(12, 0.0);
     List<double> monthlyExpense = List.filled(12, 0.0);
@@ -290,72 +368,5 @@ class _InsightScreenState extends State<InsightScreen> {
     }
     if (maxY == 0) maxY = 100000;
     return [incomeSpots, expenseSpots, savingsSpots, maxY * 1.2]; 
-  }
-
-  Widget _buildMonthSelector() {
-     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          IconButton(icon: const Icon(Icons.arrow_back_ios, size: 16), onPressed: () => setState(() => selectedDate = DateTime(selectedDate.year, selectedDate.month - 1))),
-          Text(DateFormat('MMMM yyyy', 'id_ID').format(selectedDate), style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.bold)),
-          IconButton(icon: const Icon(Icons.arrow_forward_ios, size: 16), onPressed: () => setState(() => selectedDate = DateTime(selectedDate.year, selectedDate.month + 1))),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildChartSection(List<FlSpot> income, List<FlSpot> expense, List<FlSpot> savings, double maxY) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.08), blurRadius: 20, offset: const Offset(0, 5))]),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [Icon(Icons.bar_chart_rounded, color: startBlue, size: 20), const SizedBox(width: 8), Text("Statistik Tahun ${selectedDate.year}", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 16))]),
-          const SizedBox(height: 30),
-          SizedBox(
-            height: 220,
-            child: LineChart(
-              LineChartData(
-                gridData: FlGridData(show: true, drawVerticalLine: false, horizontalInterval: maxY / 5, getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey[100], strokeWidth: 1, dashArray: [5, 5])),
-                titlesData: FlTitlesData(
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 30, interval: 1, getTitlesWidget: (value, meta) {
-                    int index = value.toInt();
-                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-                    if (index >= 0 && index < 12 && index % 2 == 0) { 
-                         return Padding(padding: const EdgeInsets.only(top: 10.0), child: Text(months[index], style: GoogleFonts.nunito(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black54)));
-                    }
-                    return const SizedBox();
-                  })),
-                ),
-                borderData: FlBorderData(show: false),
-                minX: 0, maxX: 11, minY: 0, maxY: maxY,
-                lineBarsData: [_buildLine(savings, colorSavings), _buildLine(expense, colorExpense), _buildLine(income, colorIncome)],
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [_buildLegendItem("Masuk", colorIncome), const SizedBox(width: 16), _buildLegendItem("Keluar", colorExpense), const SizedBox(width: 16), _buildLegendItem("Sisa Duit", colorSavings)]),
-        ],
-      ),
-    );
-  }
-
-  LineChartBarData _buildLine(List<FlSpot> spots, Color color) {
-    return LineChartBarData(
-      spots: spots, isCurved: true, preventCurveOverShooting: true, color: color, barWidth: 3, isStrokeCapRound: true,
-      dotData: FlDotData(show: true, checkToShowDot: (spot, barData) => spot.y > 0, getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(radius: 4, color: Colors.white, strokeWidth: 2, strokeColor: color)),
-      belowBarData: BarAreaData(show: true, gradient: LinearGradient(colors: [color.withOpacity(0.2), color.withOpacity(0.0)], begin: Alignment.topCenter, end: Alignment.bottomCenter)),
-    );
-  }
-
-  Widget _buildLegendItem(String label, Color color) {
-    return Row(children: [Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)), const SizedBox(width: 5), Text(label, style: GoogleFonts.nunito(fontSize: 10, color: Colors.grey[600]))]);
   }
 }

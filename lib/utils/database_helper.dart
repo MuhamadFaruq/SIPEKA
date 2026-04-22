@@ -19,8 +19,9 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 3,
       onCreate: _createDB,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -34,6 +35,7 @@ class DatabaseHelper {
         type TEXT,
         category TEXT,
         wallet TEXT
+        source TEXT
       )
     ''');
 
@@ -62,15 +64,43 @@ class DatabaseHelper {
         name TEXT,
         amount REAL,
         date TEXT,
-        type TEXT
+        type TEXT,
+        is_paid INTEGER DEFAULT 0,
+        paid_date TEXT,
+        notes TEXT 
       )
     ''');
   }
 
+  Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Logika upgrade ke versi 2 (Hutang/Debts)
+      await db.execute('DROP TABLE IF EXISTS debts');
+      await db.execute('''
+        CREATE TABLE debts (
+          id TEXT PRIMARY KEY, name TEXT, amount REAL, date TEXT, 
+          type TEXT, is_paid INTEGER DEFAULT 0, paid_date TEXT, notes TEXT
+        )
+      ''');
+    }
+
+    if (oldVersion < 3) {
+      // LOGIKA UPGRADE KE VERSI 3: Menambah kolom source
+      await db.execute("ALTER TABLE transactions ADD COLUMN source TEXT DEFAULT 'Manual'");
+      print("DATABASE: Berhasil Upgrade ke Versi 3 - Kolom Source Ditambahkan");
+    }
+  }
+
+  // --- CRUD TRANSAKSI ---
   // --- CRUD TRANSAKSI ---
   Future<int> insertTransaction(Map<String, dynamic> row) async {
-    final db = await instance.database;
-    return await db.insert('transactions', row);
+    try {
+      final db = await instance.database;
+      return await db.insert('transactions', row);
+    } catch (e) {
+      print("Error Database: $e");
+      return -1; // Kembalikan -1 jika gagal
+    }
   }
 
   Future<List<Map<String, dynamic>>> getAllTransactions() async {
@@ -83,7 +113,7 @@ class DatabaseHelper {
     return await db.delete('transactions', where: 'id = ?', whereArgs: [id]);
   }
 
-  // --- CRUD ANGGARAN ---
+  // --- CRUD BUDGET ---
   Future<int> insertBudget(Map<String, dynamic> row) async {
     final db = await instance.database;
     return await db.insert('budgets', row);
@@ -103,6 +133,11 @@ class DatabaseHelper {
     final db = await instance.database;
     return await db.delete('budgets', where: 'id = ?', whereArgs: [id]);
   }
+
+  Future<int> clearBudgetTable() async {
+    final db = await instance.database;
+    return await db.delete('budgets'); // Pastikan nama tabelnya 'budgets'
+  } 
 
   // --- CRUD HUTANG ---
   Future<int> insertDebt(Map<String, dynamic> row) async {
@@ -125,6 +160,14 @@ class DatabaseHelper {
     return await db.delete('debts', where: 'id = ?', whereArgs: [id]);
   }
 
+  Future<int> clearDebtTable() async {
+    final db = await instance.database;
+    // Ganti 'debts' dengan nama tabel hutangmu jika berbeda
+    return await db.delete('debts'); 
+  }
+
+  
+
   // --- CRUD WISHLIST ---
   Future<int> insertWishlist(Map<String, dynamic> row) async {
     final db = await instance.database;
@@ -144,6 +187,11 @@ class DatabaseHelper {
   Future<int> deleteWishlist(int id) async {
     final db = await instance.database;
     return await db.delete('wishlist', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> clearWishlistTable() async {
+    final db = await instance.database;
+    return await db.delete('wishlist'); // Sesuaikan nama tabel wishlist-mu
   }
 
   // --- UTILITY ---

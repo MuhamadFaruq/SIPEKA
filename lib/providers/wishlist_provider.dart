@@ -1,67 +1,104 @@
 import 'package:flutter/material.dart';
 import '../models/wishlist_model.dart';
 import '../utils/database_helper.dart';
+// import '../services/sync_service.dart'; // DIKOMENTARI: Mengistirahatkan Firebase
 
 class WishlistProvider with ChangeNotifier {
   List<WishlistItem> _items = [];
+  
+  // final SyncService _syncService = SyncService(); // DIKOMENTARI: Mengistirahatkan Firebase
 
   List<WishlistItem> get items => _items;
 
+  // Logika perhitungan total saldo tabungan impian
   double get totalSaved => _items.fold(0, (sum, item) => sum + item.savedAmount);
   double get totalTarget => _items.fold(0, (sum, item) => sum + item.targetAmount);
 
-  // --- FUNGSI AMBIL DATA DARI DATABASE ---
+  // Ambil data dari Database Lokal (SQFlite)
   Future<void> fetchAndSetWishlist() async {
-    final dataList = await DatabaseHelper.instance.getAllWishlist();
-    _items = dataList.map((item) => WishlistItem(
-      id: item['id'].toString(), // SQLite id biasanya int, kita convert ke string
-      title: item['title'],
-      targetAmount: item['target'],
-      savedAmount: item['collected'],
-    )).toList();
-    notifyListeners();
+    try {
+      final dataList = await DatabaseHelper.instance.getAllWishlist();
+      _items = dataList.map((item) => WishlistItem(
+        id: item['id'].toString(), 
+        title: item['title'],
+        targetAmount: (item['target'] as num).toDouble(),
+        savedAmount: (item['collected'] as num).toDouble(),
+      )).toList();
+      notifyListeners();
+    } catch (e) {
+      debugPrint("Error saat fetch wishlist: $e");
+    }
   }
 
-  // --- FUNGSI TAMBAH (SINKRON SQLITE) ---
-  Future<void> addWishlist(WishlistItem item) async {
-    _items.add(item);
-    notifyListeners();
+  // --- CRUD FUNCTIONS (MURNI LOKAL) ---
 
+  Future<void> addWishlist(WishlistItem item) async {
+    // Tambah ke database dulu
     await DatabaseHelper.instance.insertWishlist({
       'title': item.title,
       'target': item.targetAmount,
       'collected': item.savedAmount,
-      'icon_code': 58419, // Default icon stars
+      'icon_code': 58419, // Default icon
     });
     
-    // Refresh data agar mendapatkan ID asli dari database
+    // Refresh data dari database agar ID-nya sinkron
     await fetchAndSetWishlist();
+    
+    // _syncCloud(); // DIKOMENTARI: Mengistirahatkan Firebase
   }
 
-  // --- FUNGSI NABUNG (SINKRON SQLITE) ---
   Future<void> addSavings(String id, double amount) async {
     final index = _items.indexWhere((item) => item.id == id);
     if (index != -1) {
-      _items[index].savedAmount += amount;
+      double newAmount = _items[index].savedAmount + amount;
+
+      // Update di Database lokal
+      await DatabaseHelper.instance.updateWishlist(int.parse(id), {
+        'collected': newAmount,
+      });
+
+      // Update state lokal agar UI langsung berubah (Optimistic Update)
+      _items[index].savedAmount = newAmount;
       notifyListeners();
 
-      // Update di SQLite
-      await DatabaseHelper.instance.updateWishlist(int.parse(id), {
-        'collected': _items[index].savedAmount,
-      });
+      // _syncCloud(); // DIKOMENTARI: Mengistirahatkan Firebase
     }
   }
 
-  // --- FUNGSI HAPUS (SINKRON SQLITE) ---
   Future<void> deleteWishlist(String id) async {
+    // Hapus di database
+    await DatabaseHelper.instance.deleteWishlist(int.parse(id));
+    
+    // Update UI
     _items.removeWhere((item) => item.id == id);
     notifyListeners();
     
-    await DatabaseHelper.instance.deleteWishlist(int.parse(id));
+    // _syncCloud(); // DIKOMENTARI: Mengistirahatkan Firebase
   }
 
-  // --- FUNGSI RESET UNTUK SETTINGS ---
-  void clearAllData() {
+  // --- FUNGSI RESTORE DI-NONAKTIFKAN SEMENTARA ---
+  Future<void> restoreWishlistFromCloud() async {
+    debugPrint("Fitur Cloud Restore sedang dinonaktifkan sementara.");
+    /* try {
+      final List<WishlistItem> cloudItems = await _syncService.getWishlistFromCloud();
+      // ... logika restore ...
+    } catch (e) {
+      debugPrint("Gagal restore wishlist: $e");
+    }
+    */
+  }
+
+  // DIKOMENTARI: Mengistirahatkan Firebase
+  /*
+  void _syncCloud() {
+    _syncService.syncWishlist(_items).catchError((e) {
+      debugPrint("Gagal sinkron wishlist ke cloud: $e");
+    });
+  }
+  */
+
+  Future<void> clearAllData() async {
+    await DatabaseHelper.instance.clearWishlistTable(); // Pastikan fungsi ini ada di DatabaseHelper
     _items = [];
     notifyListeners();
   }
