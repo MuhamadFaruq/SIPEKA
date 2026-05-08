@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:flutter/foundation.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -87,7 +88,7 @@ class DatabaseHelper {
     if (oldVersion < 3) {
       // LOGIKA UPGRADE KE VERSI 3: Menambah kolom source
       await db.execute("ALTER TABLE transactions ADD COLUMN source TEXT DEFAULT 'Manual'");
-      print("DATABASE: Berhasil Upgrade ke Versi 3 - Kolom Source Ditambahkan");
+      debugPrint("DATABASE: Berhasil Upgrade ke Versi 3 - Kolom Source Ditambahkan");
     }
   }
 
@@ -98,7 +99,7 @@ class DatabaseHelper {
       final db = await instance.database;
       return await db.insert('transactions', row);
     } catch (e) {
-      print("Error Database: $e");
+      debugPrint("Error Database: $e");
       return -1; // Kembalikan -1 jika gagal
     }
   }

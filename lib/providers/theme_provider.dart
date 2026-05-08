@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/app_theme.dart';
 
 class ThemeProvider with ChangeNotifier {
   bool _isDarkMode = false;
@@ -40,37 +41,8 @@ class ThemeProvider with ChangeNotifier {
   }
 
   // --- TEMA TERANG ---
-  ThemeData get lightTheme => ThemeData(
-    brightness: Brightness.light,
-    useMaterial3: true,
-    scaffoldBackgroundColor: const Color(0xFFF5F7FF), 
-    cardColor: Colors.white,
-    primaryColor: const Color(0xFF007AFF),
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: const Color(0xFF007AFF),
-      brightness: Brightness.light,
-      surface: Colors.white,
-    ),
-    textTheme: GoogleFonts.nunitoTextTheme().copyWith(
-      bodyLarge: const TextStyle(color: Color(0xFF1A1A1A)),
-      bodyMedium: const TextStyle(color: Color(0xFF454545)),
-    ),
-    dividerTheme: DividerThemeData(color: Colors.grey.withOpacity(0.1)),
-  );
+  ThemeData get lightTheme => AppTheme.lightTheme;
 
   // --- TEMA GELAP ---
-  ThemeData get darkTheme => ThemeData(
-    brightness: Brightness.dark,
-    useMaterial3: true,
-    scaffoldBackgroundColor: const Color(0xFF121212),
-    cardColor: const Color(0xFF1E1E1E),
-    primaryColor: const Color(0xFF007AFF),
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: const Color(0xFF007AFF),
-      brightness: Brightness.dark,
-      surface: const Color(0xFF1E1E1E),
-    ),
-    textTheme: GoogleFonts.nunitoTextTheme().apply(bodyColor: Colors.white, displayColor: Colors.white),
-    dividerTheme: const DividerThemeData(color: Colors.white10),
-  );
+  ThemeData get darkTheme => AppTheme.darkTheme;
 }

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async';
 import '../services/auth_service.dart';
 import '../utils/notifications.dart';
+import '../utils/security_helper.dart';
 import 'main_navigation.dart';
 
 class PinScreen extends StatefulWidget {
@@ -15,7 +17,11 @@ class PinScreen extends StatefulWidget {
 
 class _PinScreenState extends State<PinScreen> {
   String _inputPin = "";
-  String _savedPin = "";
+  String _savedHashedPin = "";
+  bool _isLocked = false;
+  int _lockoutSeconds = 0;
+  int _remainingAttempts = SecurityHelper.maxAttempts;
+  Timer? _lockoutTimer;
 
   @override
   void initState() {
@@ -23,14 +29,80 @@ class _PinScreenState extends State<PinScreen> {
     _loadAndAuth();
   }
 
+  @override
+  void dispose() {
+    _lockoutTimer?.cancel();
+    super.dispose();
+  }
+
   void _loadAndAuth() async {
-      final prefs = await SharedPreferences.getInstance();
-      _savedPin = prefs.getString('app_pin') ?? "123456";
-      bool isBiometricActive = prefs.getBool('is_biometric_enabled') ?? false;
-    
-    if (isBiometricActive) {
+    final prefs = await SharedPreferences.getInstance();
+    String storedPin = prefs.getString('app_pin') ?? "";
+
+    // --- MIGRASI: Jika PIN lama masih plaintext atau unsalted hash ---
+    if (storedPin.isNotEmpty) {
+      if (SecurityHelper.isPinPlaintext(storedPin)) {
+        // Dari plaintext -> Salted Hash
+        final hashedPin = SecurityHelper.hashPin(storedPin);
+        await prefs.setString('app_pin', hashedPin);
+        storedPin = hashedPin;
+        debugPrint("SIPEKA Security: PIN Plaintext dimigrasi ke Salted Hash.");
+      } else {
+        // Cek apakah ini hash lama (unsalted). 
+        // Kita tidak bisa tahu pasti tanpa mencoba, tapi kita bisa tandai dengan pref baru
+        final bool isSalted = prefs.getBool('is_pin_salted') ?? false;
+        if (!isSalted) {
+          // Kita butuh input user untuk re-hash dengan salt jika ini hash.
+          // Tapi untuk kemudahan, kita anggap semua hash yang belum ditandai 'is_pin_salted' 
+          // harus diverifikasi dengan hash legacy dulu lalu diupdate saat login berhasil.
+        }
+      }
+    }
+
+    _savedHashedPin = storedPin;
+
+    // Cek lockout
+    final lockoutRemaining = await SecurityHelper.getLockoutRemainingSeconds();
+    if (lockoutRemaining > 0) {
+      _startLockoutCountdown(lockoutRemaining);
+    } else {
+      final remaining = await SecurityHelper.getRemainingAttempts();
+      if (mounted) setState(() => _remainingAttempts = remaining);
+    }
+
+    // Cek biometrik
+    bool isBiometricActive = prefs.getBool('is_biometric_enabled') ?? false;
+    if (isBiometricActive && lockoutRemaining == 0) {
       _authenticateBiometrically();
     }
+  }
+
+  void _startLockoutCountdown(int seconds) {
+    if (!mounted) return;
+    setState(() {
+      _isLocked = true;
+      _lockoutSeconds = seconds;
+    });
+    _lockoutTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      final remaining = await SecurityHelper.getLockoutRemainingSeconds();
+      if (remaining <= 0) {
+        timer.cancel();
+        final attempts = await SecurityHelper.getRemainingAttempts();
+        if (mounted) {
+          setState(() {
+            _isLocked = false;
+            _lockoutSeconds = 0;
+            _remainingAttempts = attempts;
+          });
+        }
+      } else {
+        if (mounted) setState(() => _lockoutSeconds = remaining);
+      }
+    });
   }
 
   Future<void> _authenticateBiometrically() async {
@@ -39,32 +111,59 @@ class _PinScreenState extends State<PinScreen> {
   }
 
   void _enterApp() {
+    SecurityHelper.resetAttempts();
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (context) => const MainNavigation()),
     );
   }
 
-  void _handleKeyPress(String value) {
-    HapticFeedback.lightImpact(); 
+  void _handleKeyPress(String value) async {
+    if (_isLocked) return;
+    HapticFeedback.lightImpact();
     if (_inputPin.length < 6) {
       setState(() => _inputPin += value);
     }
-    
+
     if (_inputPin.length == 6) {
-      if (_inputPin == _savedPin) {
+      // Jika PIN belum pernah diset, langsung masuk
+      if (_savedHashedPin.isEmpty) {
+        _enterApp();
+        return;
+      }
+
+      if (await SecurityHelper.verifyPin(_inputPin, _savedHashedPin)) {
         _enterApp();
       } else {
-        HapticFeedback.vibrate(); 
+        HapticFeedback.vibrate();
         setState(() => _inputPin = "");
-        SipekaNotification.showWarning(context, "PIN yang Anda masukkan salah!");
+
+        final isNowLocked = await SecurityHelper.recordFailedAttempt();
+        if (isNowLocked) {
+          final lockoutSec = await SecurityHelper.getLockoutRemainingSeconds();
+          _startLockoutCountdown(lockoutSec);
+          if (mounted) {
+            SipekaNotification.showWarning(
+              context,
+              "Terlalu banyak percobaan! Coba lagi dalam ${lockoutSec}s.",
+            );
+          }
+        } else {
+          final remaining = await SecurityHelper.getRemainingAttempts();
+          if (mounted) {
+            setState(() => _remainingAttempts = remaining);
+            SipekaNotification.showWarning(
+              context,
+              "PIN salah. Sisa percobaan: $remaining",
+            );
+          }
+        }
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // PIN Screen tetap biru sebagai identitas Keamanan
     return Scaffold(
       resizeToAvoidBottomInset: false,
       backgroundColor: const Color(0xFF2972FF),
@@ -80,11 +179,22 @@ class _PinScreenState extends State<PinScreen> {
             ),
             const SizedBox(height: 5),
             Text(
-              "Silakan masukkan 6 digit PIN Anda",
+              _isLocked
+                  ? "Terkunci selama $_lockoutSeconds detik"
+                  : "Silakan masukkan 6 digit PIN Anda",
               style: GoogleFonts.nunito(color: Colors.white70, fontSize: 14),
             ),
+            if (!_isLocked && _remainingAttempts < SecurityHelper.maxAttempts)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  "Sisa percobaan: $_remainingAttempts",
+                  style: GoogleFonts.nunito(color: Colors.orangeAccent, fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+              ),
             const SizedBox(height: 40),
-            
+
+            // Indikator titik PIN
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(6, (index) => Container(
@@ -92,27 +202,50 @@ class _PinScreenState extends State<PinScreen> {
                 width: 14,
                 height: 14,
                 decoration: BoxDecoration(
-                  color: index < _inputPin.length ? Colors.white : Colors.white24,
+                  color: _isLocked
+                      ? Colors.white12
+                      : (index < _inputPin.length ? Colors.white : Colors.white24),
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white38, width: 1),
                 ),
               )),
             ),
-            
-            const Spacer(),
-            _buildKeypad(),
 
-            TextButton(
-              onPressed: () => _handleForgotPassword(context),
-              child: Text(
-                "Lupa PIN?",
-                style: GoogleFonts.nunito(color: Colors.white, fontWeight: FontWeight.bold),
+            const Spacer(),
+            _isLocked
+                ? _buildLockoutIndicator()
+                : _buildKeypad(),
+
+            if (!_isLocked)
+              TextButton(
+                onPressed: () => _handleForgotPassword(context),
+                child: Text(
+                  "Lupa PIN?",
+                  style: GoogleFonts.nunito(color: Colors.white, fontWeight: FontWeight.bold),
+                ),
               ),
-            ),
             const SizedBox(height: 20),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildLockoutIndicator() {
+    return Column(
+      children: [
+        const Icon(Icons.timer_outlined, color: Colors.white54, size: 48),
+        const SizedBox(height: 12),
+        Text(
+          "$_lockoutSeconds",
+          style: GoogleFonts.nunito(color: Colors.white, fontSize: 48, fontWeight: FontWeight.bold),
+        ),
+        Text(
+          "detik tersisa",
+          style: GoogleFonts.nunito(color: Colors.white70, fontSize: 14),
+        ),
+        const SizedBox(height: 40),
+      ],
     );
   }
 
@@ -178,7 +311,6 @@ class _PinScreenState extends State<PinScreen> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        // FIX: Dialog mengikuti tema (Gelap/Terang)
         backgroundColor: Theme.of(context).cardColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text("Pemulihan PIN", style: GoogleFonts.nunito(
@@ -191,34 +323,35 @@ class _PinScreenState extends State<PinScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(question, style: GoogleFonts.nunito(
-                fontSize: 14, 
-              color: Theme.of(context).textTheme.bodyLarge?.color?.withOpacity(0.7)
-            )),
-            const SizedBox(height: 10),
-            TextField(
-              controller: answerController,
-              autofocus: true,
-              style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
-              decoration: InputDecoration(
-                hintText: "Jawaban Anda",
-                hintStyle: GoogleFonts.nunito(fontSize: 13, color: Colors.grey),
-                filled: true,
-                fillColor: Theme.of(context).brightness == Brightness.dark ? Colors.black26 : Colors.grey[100],
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                fontSize: 14,
+                color: Theme.of(context).textTheme.bodyLarge?.color?.withValues(alpha: 0.7)
+              )),
+              const SizedBox(height: 10),
+              TextField(
+                controller: answerController,
+                autofocus: true,
+                style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+                decoration: InputDecoration(
+                  hintText: "Jawaban Anda",
+                  hintStyle: GoogleFonts.nunito(fontSize: 13, color: Colors.grey),
+                  filled: true,
+                  fillColor: Theme.of(context).brightness == Brightness.dark ? Colors.black26 : Colors.grey[100],
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx), 
+            onPressed: () => Navigator.pop(ctx),
             child: Text("BATAL", style: GoogleFonts.nunito(color: Colors.grey))
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2972FF)),
             onPressed: () async {
               bool isCorrect = await AuthService.verifySecurityAnswer(answerController.text);
+              if (!context.mounted) return;
               if (isCorrect) {
                 Navigator.pop(ctx);
                 _showResetPinDialog();
@@ -235,12 +368,12 @@ class _PinScreenState extends State<PinScreen> {
 
   void _showResetPinDialog() {
     final newPinController = TextEditingController();
-    
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Theme.of(context).cardColor, // FIX: Dinamis
+        backgroundColor: Theme.of(context).cardColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text("Setel PIN Baru", style: GoogleFonts.nunito(
           fontWeight: FontWeight.bold,
@@ -253,13 +386,13 @@ class _PinScreenState extends State<PinScreen> {
           maxLength: 6,
           textAlign: TextAlign.center,
           style: TextStyle(
-            letterSpacing: 10, 
-            fontSize: 20, 
+            letterSpacing: 10,
+            fontSize: 20,
             fontWeight: FontWeight.bold,
             color: Theme.of(context).textTheme.bodyLarge?.color
           ),
           decoration: InputDecoration(
-            hintText: "000000", 
+            hintText: "000000",
             hintStyle: const TextStyle(color: Colors.grey),
             counterText: "",
             filled: true,
@@ -273,7 +406,11 @@ class _PinScreenState extends State<PinScreen> {
             onPressed: () async {
               if (newPinController.text.length == 6) {
                 final prefs = await SharedPreferences.getInstance();
-                await prefs.setString('app_pin', newPinController.text);
+                // Simpan sebagai HASH, bukan plaintext!
+                final hashedPin = SecurityHelper.hashPin(newPinController.text);
+                await prefs.setString('app_pin', hashedPin);
+                await SecurityHelper.resetAttempts();
+                if (!context.mounted) return;
                 Navigator.pop(ctx);
                 SipekaNotification.showSuccess(context, "PIN Berhasil diperbarui!");
                 _enterApp();

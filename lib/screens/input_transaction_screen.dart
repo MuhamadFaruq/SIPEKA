@@ -12,6 +12,8 @@ import 'package:flutter/services.dart';
 import '../utils/ocr_helper.dart';
 import '../utils/notifications.dart'; 
 import '../providers/theme_provider.dart';
+import '../utils/app_theme.dart';
+import '../widgets/custom_numpad.dart';
 
 class InputTransactionScreen extends StatefulWidget {
   final String? initialCategory;
@@ -35,11 +37,6 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
   String? _selectedCategory;
   DateTime _selectedDate = DateTime.now();
   final TextEditingController _noteController = TextEditingController();
-
-  final Color startBlue = const Color(0xFF007AFF);
-  final Color endBlue = const Color(0xFF00479E);
-  final Color colorExpense = const Color(0xFFFF5252);
-  final Color colorIncome = const Color(0xFF00C853);
 
   @override
   void initState() {
@@ -83,12 +80,8 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
       appBar: AppBar(
         title: Text("Tambah Transaksi", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, color: Colors.white)),
         flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [startBlue, endBlue],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+          decoration: const BoxDecoration(
+            gradient: AppColors.primaryGradient,
           ),
         ),
         foregroundColor: Colors.white,
@@ -152,7 +145,25 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
               ],
             ),
           ),
-          _buildSimpleNumpad(context),
+          CustomNumpad(
+            onKeyPressed: (key) {
+              setState(() {
+                if (_inputAmount == '0') {
+                  _inputAmount = key;
+                } else {
+                  _inputAmount += key;
+                }
+              });
+            },
+            onDelete: () {
+              setState(() {
+                _inputAmount = _inputAmount.length > 1
+                    ? _inputAmount.substring(0, _inputAmount.length - 1)
+                    : '0';
+              });
+            },
+            onSubmit: _saveTransaction,
+          ),
         ],
       ),
     );
@@ -232,110 +243,9 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
           const SizedBox(height: 5),
           Center(
             child: Text(_formatCurrency(_inputAmount),
-              style: GoogleFonts.nunito(fontSize: 38, fontWeight: FontWeight.bold, color: _type == 'Pengeluaran' ? colorExpense : colorIncome)),
+              style: GoogleFonts.nunito(fontSize: 38, fontWeight: FontWeight.bold, color: _type == 'Pengeluaran' ? AppColors.expenseRed : AppColors.incomeGreen)),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildSimpleNumpad(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 15, 20, 30),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: const BorderRadius.only(topLeft: Radius.circular(30), topRight: Radius.circular(30)),
-        boxShadow: [
-          BoxShadow(
-            color: Theme.of(context).brightness == Brightness.dark ? Colors.black26 : Colors.black.withOpacity(0.05), 
-            blurRadius: 10, offset: const Offset(0, -5)
-          )
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildNumRow(context, ['1', '2', '3']),
-          const SizedBox(height: 10),
-          _buildNumRow(context, ['4', '5', '6']),
-          const SizedBox(height: 10),
-          _buildNumRow(context, ['7', '8', '9']),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              _buildNumKey(context, '000'), const SizedBox(width: 10),
-              _buildNumKey(context, '0'), const SizedBox(width: 10),
-              Expanded(
-                child: Material(
-                  color: Colors.red.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: () => setState(() {
-                      _inputAmount = _inputAmount.length > 1 ? _inputAmount.substring(0, _inputAmount.length - 1) : '0';
-                    }),
-                    child: const SizedBox(height: 48, child: Icon(Icons.backspace_outlined, color: Colors.red, size: 20)),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 15),
-          SizedBox(
-            width: double.infinity, height: 50,
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [startBlue, endBlue]),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                onPressed: _saveTransaction,
-                child: Text("SIMPAN TRANSAKSI", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, color: Colors.white)),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNumRow(BuildContext context, List<String> keys) {
-    return Row(children: [
-      _buildNumKey(context, keys[0]), const SizedBox(width: 10),
-      _buildNumKey(context, keys[1]), const SizedBox(width: 10),
-      _buildNumKey(context, keys[2])
-    ]);
-  }
-
-  Widget _buildNumKey(BuildContext context, String key) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Expanded(
-      child: Material(
-        color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey[50], 
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () => setState(() {
-            if (_inputAmount == '0') {
-              _inputAmount = key;
-            } else {
-              _inputAmount += key;
-            }
-          }),
-          child: Container(
-            height: 48, alignment: Alignment.center,
-            child: Text(key, style: GoogleFonts.nunito(
-              fontSize: 20, 
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).textTheme.bodyLarge?.color
-            )),
-          ),
-        ),
       ),
     );
   }
@@ -377,7 +287,7 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: isSelected ? startBlue : Theme.of(context).cardColor, 
+                      color: isSelected ? AppColors.primaryBlue : Theme.of(context).cardColor, 
                       shape: BoxShape.circle,
                       // Tambahkan border merah tipis jika belum pilih agar user ngeh
                       border: Border.all(
@@ -411,8 +321,8 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
       ),
       child: Row(
         children: [
-          _buildTypeButton("Pengeluaran", colorExpense, _type == 'Pengeluaran'),
-          _buildTypeButton("Pemasukan", colorIncome, _type == 'Pemasukan'),
+          _buildTypeButton("Pengeluaran", AppColors.expenseRed, _type == 'Pengeluaran'),
+          _buildTypeButton("Pemasukan", AppColors.incomeGreen, _type == 'Pemasukan'),
         ],
       ),
     );
@@ -443,11 +353,11 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
           decoration: BoxDecoration(
             color: Theme.of(context).cardColor, 
             borderRadius: BorderRadius.circular(16), 
-            border: isSelected ? Border.all(color: startBlue, width: 2) : Border.all(color: Colors.white10)
+            border: isSelected ? Border.all(color: AppColors.primaryBlue, width: 2) : Border.all(color: Colors.white10)
           ),
           child: Row(
             children: [
-              Icon(icon, color: isSelected ? startBlue : Colors.orange, size: 22),
+              Icon(icon, color: isSelected ? AppColors.primaryBlue : Colors.orange, size: 22),
               const SizedBox(width: 8),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(name, style: GoogleFonts.nunito(
@@ -493,7 +403,7 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
       lastDate: DateTime(2030), 
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
-          colorScheme: Theme.of(context).colorScheme.copyWith(primary: startBlue)
+          colorScheme: Theme.of(context).colorScheme.copyWith(primary: AppColors.primaryBlue)
         ), 
         child: child!
       )
@@ -579,7 +489,7 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
       uiSettings: [ 
         AndroidUiSettings(
           toolbarTitle: 'Fokuskan pada Total Belanja',
-          toolbarColor: startBlue,
+          toolbarColor: AppColors.primaryBlue,
           toolbarWidgetColor: Colors.white,
           initAspectRatio: CropAspectRatioPreset.original,
           lockAspectRatio: false,

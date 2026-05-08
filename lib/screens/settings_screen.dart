@@ -11,6 +11,8 @@ import 'package:csv/csv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // Import Utilities & Provider
+import 'package:firebase_auth/firebase_auth.dart';
+import '../utils/security_helper.dart';
 import '../utils/formatters.dart'; 
 import '../providers/transaction_provider.dart';
 import '../providers/budget_provider.dart';
@@ -24,6 +26,7 @@ import '../utils/notification_service.dart';
 import '../services/auth_service.dart'; 
 import '../providers/category_provider.dart';
 import '../providers/theme_provider.dart';
+import '../services/sync_service.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -283,6 +286,13 @@ class SettingsScreen extends StatelessWidget {
           ),
           
           const SizedBox(height: 25),
+          _buildSectionTitle(context, "Akun Cloud"),
+          _buildSettingCard(
+            context: context,
+            child: _buildCloudAccountTile(context),
+          ),
+          
+          const SizedBox(height: 25),
           _buildSectionTitle(context, "Tampilan"),
           _buildSettingCard(
             context: context, // FIX: Tambah context
@@ -324,9 +334,128 @@ class SettingsScreen extends StatelessWidget {
                 const Divider(height: 1),
                 _buildListTile(context: context, icon: Icons.cloud_upload_outlined, title: "Ekspor Data", subtitle: "Simpan data ke format CSV", color: Colors.blue, onTap: () => _showExportOptions(context)),
                 const Divider(height: 1),
-                _buildListTile(context: context, icon: Icons.cloud_sync, title: "Sinkronisasi Cloud", subtitle: "Fitur ini dinonaktifkan sementara", color: Colors.grey, onTap: () => SipekaNotification.showWarning(context, "Fitur Cloud sedang dalam pemeliharaan.")),
+                _buildListTile(context: context, icon: Icons.cloud_sync, title: "Sinkronisasi Cloud", subtitle: "Cadangkan data ke server SIPEKA", color: Colors.blueAccent, onTap: () async {
+                  final authService = AuthService();
+                  final currentUser = await authService.user.first;
+
+                  if (currentUser == null) {
+                    // User belum login — tampilkan dialog login Google
+                    if (!context.mounted) return;
+                    showDialog(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        title: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.blueAccent.withOpacity(0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.cloud_sync, color: Colors.blueAccent, size: 22),
+                            ),
+                            const SizedBox(width: 12),
+                            Text("Login Diperlukan", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 16)),
+                          ],
+                        ),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              "Untuk menyimpan data ke Cloud, Anda perlu login dengan akun Google terlebih dahulu.",
+                              style: GoogleFonts.nunito(fontSize: 13, color: Colors.grey[700]),
+                            ),
+                            const SizedBox(height: 16),
+                            // Tombol Login Google
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  side: BorderSide(color: Colors.grey.shade300),
+                                ),
+                                icon: Image.asset('assets/images/google_logo.png', height: 20, errorBuilder: (_, __, ___) => const Icon(Icons.login, size: 20)),
+                                label: Text("Lanjutkan dengan Google", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, color: Colors.black87)),
+                                onPressed: () async {
+                                  Navigator.pop(ctx);
+                                  // Proses login
+                                  showDialog(
+                                    context: context,
+                                    barrierDismissible: false,
+                                    builder: (c) => const Center(child: CircularProgressIndicator()),
+                                  );
+                                  final user = await authService.signInWithGoogle();
+                                  if (!context.mounted) return;
+                                  Navigator.pop(context); // tutup loading
+                                  if (user != null) {
+                                    SipekaNotification.showSuccess(context, "Login berhasil! Memulai sinkronisasi...");
+                                    // Langsung sync setelah login
+                                    Future.delayed(const Duration(seconds: 1), () async {
+                                      if (!context.mounted) return;
+                                      showDialog(
+                                        context: context,
+                                        barrierDismissible: false,
+                                        builder: (c) => const Center(child: CircularProgressIndicator()),
+                                      );
+                                      try {
+                                        await SyncService().syncAllData();
+                                        if (!context.mounted) return;
+                                        Navigator.pop(context);
+                                        SipekaNotification.showSuccess(context, "Data berhasil disinkronkan ke Cloud!");
+                                      } catch (e) {
+                                        if (!context.mounted) return;
+                                        Navigator.pop(context);
+                                        SipekaNotification.showWarning(context, "Gagal sinkronisasi: ${e.toString()}");
+                                      }
+                                    });
+                                  } else {
+                                    SipekaNotification.showWarning(context, "Login dibatalkan.");
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: Text("Batal", style: GoogleFonts.nunito(color: Colors.grey)),
+                          ),
+                        ],
+                      ),
+                    );
+                  } else {
+                    // User sudah login — langsung sync
+                    try {
+                      showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (ctx) => Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const CircularProgressIndicator(color: Colors.white),
+                              const SizedBox(height: 16),
+                              Text("Menyinkronkan data...", style: GoogleFonts.nunito(color: Colors.white, fontSize: 14)),
+                            ],
+                          ),
+                        ),
+                      );
+                      await SyncService().syncAllData();
+                      if (!context.mounted) return;
+                      Navigator.pop(context);
+                      SipekaNotification.showSuccess(context, "Data berhasil disinkronkan ke Cloud! (${currentUser.email})");
+                    } catch (e) {
+                      if (!context.mounted) return;
+                      Navigator.pop(context);
+                      SipekaNotification.showWarning(context, "Gagal sinkronisasi: ${e.toString()}");
+                    }
+                  }
+                }),
                 const Divider(height: 1),
-                _buildListTile(context: context, icon: Icons.restore, title: "Reset Semua Data", subtitle: "Menghapus seluruh catatan dari nol", color: Colors.red, onTap: () => _confirmResetData(context)),
+                _buildListTile(context: context, icon: Icons.restore, title: "Reset Semua Data", subtitle: "Menghapus seluruh catatan dari nol", color: Colors.red, onTap: () => _confirmResetDataSafe(context)),
               ],
             ),
           ),
@@ -341,7 +470,7 @@ class SettingsScreen extends StatelessWidget {
             context: context, // FIX: Tambah context
             child: Column(
               children: [
-                _buildListTile(context: context, icon: Icons.info_outline, title: "Versi Aplikasi", subtitle: "v1.0.0 (Offline Mode)", color: Colors.grey, onTap: () {}),
+                _buildListTile(context: context, icon: Icons.info_outline, title: "Versi Aplikasi", subtitle: "v1.0.0", color: Colors.grey, onTap: () {}),
                 const Divider(height: 1),
                 _buildListTile(context: context, icon: Icons.star_border, title: "Beri Rating", subtitle: "Dukung kami di Play Store", color: Colors.amber, onTap: () {}),
               ],
@@ -435,8 +564,13 @@ class SettingsScreen extends StatelessWidget {
               onPressed: () async {
                 if (pinController.text.length == 6 && answerController.text.isNotEmpty) {
                   final prefs = await SharedPreferences.getInstance();
-                  await prefs.setString('app_pin', pinController.text);
+                  // HASH PIN SEBELUM SIMPAN
+                  final hashedPin = SecurityHelper.hashPin(pinController.text);
+                  await prefs.setString('app_pin', hashedPin);
+                  
+                  // HASH JAWABAN SEBELUM SIMPAN
                   await AuthService.saveSecurityQuestion(selectedQuestion, answerController.text);
+                  
                   Navigator.pop(ctx);
                   SipekaNotification.showSuccess(context, "Keamanan diperbarui!");
                   onComplete(true);
@@ -778,6 +912,109 @@ class SettingsScreen extends StatelessWidget {
         )
       ),
       onTap: onTap,
+    );
+  }
+
+  Widget _buildCloudAccountTile(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return _buildListTile(
+        context: context,
+        icon: Icons.cloud_off,
+        title: "Belum Terhubung",
+        subtitle: "Klik untuk login & cadangkan data",
+        color: Colors.orange,
+        onTap: () async {
+          final auth = AuthService();
+          final user = await auth.signInWithGoogle();
+          if (user != null) {
+            if (context.mounted) {
+              SipekaNotification.showSuccess(context, "Selamat datang, ${user.displayName}!");
+            }
+          }
+        },
+      );
+    }
+
+    return ListTile(
+      leading: CircleAvatar(
+        radius: 18,
+        backgroundImage: user.photoURL != null ? NetworkImage(user.photoURL!) : null,
+        child: user.photoURL == null ? const Icon(Icons.person) : null,
+      ),
+      title: Text(
+        user.displayName ?? "Pengguna Google",
+        style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.bold),
+      ),
+      subtitle: Text(
+        user.email ?? "",
+        style: GoogleFonts.nunito(fontSize: 11),
+      ),
+      trailing: IconButton(
+        icon: const Icon(Icons.logout, size: 18, color: Colors.redAccent),
+        onPressed: () async {
+          await AuthService().signOut();
+          if (context.mounted) {
+            SipekaNotification.showWarning(context, "Berhasil logout");
+          }
+        },
+      ),
+    );
+  }
+
+  void _confirmResetDataSafe(BuildContext context) {
+    final confirmController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text("Konfirmasi Hapus Data", style: GoogleFonts.nunito(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("Tindakan ini permanen. Ketik 'HAPUS' di bawah untuk melanjutkan:"),
+            const SizedBox(height: 15),
+            TextField(
+              controller: confirmController,
+              decoration: const InputDecoration(
+                hintText: "Ketik HAPUS",
+                border: OutlineInputBorder(),
+              ),
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("BATAL")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              if (confirmController.text == "HAPUS") {
+                Navigator.pop(ctx);
+                
+                // Proses hapus semua
+                await DatabaseHelper.instance.clearAllTables();
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.clear(); // Reset semua settings & PIN
+                
+                if (context.mounted) {
+                  Provider.of<TransactionProvider>(context, listen: false).clearAllData();
+                  Provider.of<BudgetProvider>(context, listen: false).clearAllData();
+                  Provider.of<DebtProvider>(context, listen: false).clearAllData();
+                  Provider.of<WishlistProvider>(context, listen: false).clearAllData();
+                  
+                  SipekaNotification.showSuccess(context, "Semua data telah dihapus!");
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                }
+              } else {
+                SipekaNotification.showWarning(context, "Kata konfirmasi salah.");
+              }
+            },
+            child: const Text("HAPUS SEKARANG", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
     );
   }
 }

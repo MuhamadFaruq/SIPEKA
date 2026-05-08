@@ -1,13 +1,13 @@
-/* SIPEKA - Sync Service (Disabled Temporarily)
-  file ini dinonaktifkan sementara untuk menghindari error build iOS 
-  akibat konflik non-modular header di Xcode 16.
-*/
-
-// import 'package:cloud_firestore/cloud_firestore.dart' as firestore; 
-// import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
+import 'package:firebase_auth/firebase_auth.dart';
+import '../models/transaction_model.dart';
+import '../models/debt_model.dart';
+import '../models/budget_model.dart';
+import '../models/wishlist_model.dart';
+import '../models/category.dart' as models;
+import '../utils/database_helper.dart';
 
 class SyncService {
-  /* // Gunakan alias 'firestore' yang sudah kita buat di atas
   final firestore.FirebaseFirestore _firestore = firestore.FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
@@ -19,7 +19,7 @@ class SyncService {
 
     final batch = _firestore.batch();
     final collection = _firestore.collection('users').doc(_userId).collection('transactions');
-    
+
     for (var tx in transactions) {
       final docRef = collection.doc(tx.id);
       batch.set(docRef, {
@@ -29,6 +29,7 @@ class SyncService {
         'wallet': tx.wallet,
         'type': tx.type,
         'date': tx.date.toIso8601String(),
+        'source': tx.source,
       });
     }
     await batch.commit();
@@ -43,15 +44,7 @@ class SyncService {
 
     for (var d in debts) {
       final docRef = collection.doc(d.id);
-      batch.set(docRef, {
-        'name': d.name,
-        'amount': d.amount,
-        'type': d.type,
-        'isPaid': d.isPaid,
-        'notes': d.notes,
-        'date': d.date.toIso8601String(),
-        'paidDate': d.paidDate?.toIso8601String(),
-      });
+      batch.set(docRef, d.toJson());
     }
     await batch.commit();
   }
@@ -76,6 +69,7 @@ class SyncService {
         type: data['type'],
         category: data['category'],
         wallet: data['wallet'],
+        source: data['source'] ?? 'Manual',
       );
     }).toList();
   }
@@ -91,17 +85,7 @@ class SyncService {
         .get();
 
     return snapshot.docs.map((doc) {
-      final data = doc.data();
-      return Debt(
-        id: doc.id,
-        name: data['name'],
-        amount: (data['amount'] as num).toDouble(),
-        type: data['type'],
-        isPaid: data['isPaid'] ?? false,
-        notes: data['notes'],
-        date: DateTime.parse(data['date']),
-        paidDate: data['paidDate'] != null ? DateTime.parse(data['paidDate']) : null,
-      );
+      return Debt.fromJson({...doc.data(), 'id': doc.id});
     }).toList();
   }
 
@@ -112,11 +96,7 @@ class SyncService {
     final collection = _firestore.collection('users').doc(_userId).collection('budgets');
 
     for (var b in budgets) {
-      batch.set(collection.doc(b.category), {
-        'category': b.category,
-        'limit': b.limit,
-        'iconCode': b.iconCode,
-      });
+      batch.set(collection.doc(b.id), b.toJson());
     }
     await batch.commit();
   }
@@ -126,14 +106,7 @@ class SyncService {
     final snapshot = await _firestore.collection('users').doc(_userId).collection('budgets').get();
 
     return snapshot.docs.map((doc) {
-      final data = doc.data();
-      return Budget(
-        id: doc.id,
-        category: data['category'],
-        limit: (data['limit'] as num).toDouble(),
-        iconCode: data['iconCode'],
-        usedAmount: 0.0,
-      );
+      return Budget.fromJson({...doc.data(), 'id': doc.id});
     }).toList();
   }
 
@@ -144,12 +117,7 @@ class SyncService {
     final collection = _firestore.collection('users').doc(_userId).collection('wishlist');
 
     for (var item in items) {
-      batch.set(collection.doc(item.id), {
-        'title': item.title,
-        'targetamount': item.targetAmount,
-        'savedamount': item.savedAmount,
-        'isComplete': item.savedAmount >= item.targetAmount,  
-      });
+      batch.set(collection.doc(item.id), item.toJson());
     }
     await batch.commit();
   }
@@ -159,13 +127,7 @@ class SyncService {
     final snapshot = await _firestore.collection('users').doc(_userId).collection('wishlist').get();
 
     return snapshot.docs.map((doc) {
-      final data = doc.data();
-      return WishlistItem(
-        id: doc.id,
-        title: data['title'],
-        targetAmount: (data['targetAmount'] as num).toDouble(),
-        savedAmount: (data['savedAmount'] as num).toDouble(),
-      );
+      return WishlistItem.fromJson({...doc.data(), 'id': doc.id});
     }).toList();
   }
 
@@ -202,10 +164,51 @@ class SyncService {
       );
     }).toList();
   }
-  */
 
-  // Placeholder agar class tidak kosong dan tidak error saat dipanggil
+  /// Sinkronisasi semua data lokal ke Firebase Cloud sekaligus.
   Future<void> syncAllData() async {
-    print("Sinkronisasi Firebase dinonaktifkan sementara.");
+    if (_userId == null) {
+      throw Exception("User belum login");
+    }
+
+    // Ambil semua data dari SQLite lokal
+    final transactionsMap = await DatabaseHelper.instance.getAllTransactions();
+    final budgetsMap = await DatabaseHelper.instance.getAllBudgets();
+    final debtsMap = await DatabaseHelper.instance.getAllDebts();
+    final wishlistMap = await DatabaseHelper.instance.getAllWishlist();
+
+    final List<Transaction> transactions = transactionsMap.map((e) => Transaction(
+      id: e['id'], title: e['title'],
+      amount: (e['amount'] as num).toDouble(),
+      date: DateTime.parse(e['date']),
+      type: e['type'], category: e['category'],
+      wallet: e['wallet'], source: e['source'] ?? 'Manual',
+    )).toList();
+
+    final List<Budget> budgets = budgetsMap.map((e) => Budget(
+      id: e['id'],
+      category: e['category'],
+      limit: (e['limit_amount'] as num).toDouble(),
+      iconCode: e['icon_code'] ?? 0,
+    )).toList();
+
+    final List<Debt> debts = debtsMap.map((e) => Debt(
+      id: e['id'], name: e['name'],
+      amount: (e['amount'] as num).toDouble(),
+      date: DateTime.parse(e['date']),
+      type: e['type'], isPaid: e['is_paid'] == 1,
+      notes: e['notes'],
+    )).toList();
+
+    final List<WishlistItem> wishlists = wishlistMap.map((e) => WishlistItem(
+      id: e['id'].toString(), title: e['title'],
+      targetAmount: (e['target'] as num).toDouble(),
+      savedAmount: (e['collected'] as num).toDouble(),
+    )).toList();
+
+    await syncTransactions(transactions);
+    await syncBudgets(budgets);
+    await syncDebts(debts);
+    await syncWishlist(wishlists);
   }
 }

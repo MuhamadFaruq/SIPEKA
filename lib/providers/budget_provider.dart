@@ -5,8 +5,9 @@ import '../utils/database_helper.dart';
 
 class BudgetProvider with ChangeNotifier {
   List<Budget> _budgets = []; 
-  // final SyncService _syncService = SyncService(); // [DIKOMENTARI] Sementara tidak digunakan
+  bool _isLoading = false;
 
+  bool get isLoading => _isLoading;
   List<Budget> get budgets => _budgets;
 
   List<String> get activeCategories {
@@ -15,15 +16,23 @@ class BudgetProvider with ChangeNotifier {
 
   // --- FUNGSI AMBIL DATA DARI DATABASE (LOCAL ONLY) ---
   Future<void> fetchAndSetBudgets() async {
-    final dataList = await DatabaseHelper.instance.getAllBudgets();
-    _budgets = dataList.map((item) => Budget(
-      id: item['id'],
-      category: item['category'],
-      limit: (item['limit_amount'] as num).toDouble(),
-      iconCode: item['icon_code'],
-      usedAmount: 0.0, 
-    )).toList();
+    _isLoading = true;
     notifyListeners();
+    try {
+      final dataList = await DatabaseHelper.instance.getAllBudgets();
+      _budgets = dataList.map((item) => Budget(
+        id: item['id'],
+        category: item['category'],
+        limit: (item['limit_amount'] as num).toDouble(),
+        iconCode: item['icon_code'],
+        usedAmount: 0.0, 
+      )).toList();
+    } catch (e) {
+      debugPrint("Error fetching budgets: $e");
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   Future<void> fetchBudgets() async {

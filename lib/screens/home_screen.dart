@@ -16,7 +16,7 @@ import '../providers/theme_provider.dart';
 import '../models/transaction_model.dart';
 import '../models/quick_action_model.dart';
 import '../utils/formatters.dart'; 
-import '../utils/constants.dart';
+import '../utils/constants.dart' hide AppColors;
 import '../utils/notifications.dart'; 
 import '../utils/transaction_helper.dart'; // Import Helper Baru
 
@@ -25,6 +25,8 @@ import 'all_transactions_screen.dart';
 import 'settings_screen.dart'; 
 
 import '../widgets/transaction_pie_chart.dart';
+import '../widgets/balance_card.dart';
+import '../utils/app_theme.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -85,7 +87,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         decoration: BoxDecoration(
                           color: Theme.of(context).scaffoldBackgroundColor,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: _isListening ? const Color(0xFF007AFF) : Colors.transparent, width: 2)
+                          border: Border.all(color: _isListening ? AppColors.primaryBlue : Colors.transparent, width: 2)
                         ),
                         child: Text(
                           _voiceText,
@@ -129,11 +131,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           duration: const Duration(milliseconds: 300),
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: _isListening ? Colors.red : const Color(0xFF007AFF),
+                            color: _isListening ? Colors.red : AppColors.primaryBlue,
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color: (_isListening ? Colors.red : const Color(0xFF007AFF)).withOpacity(0.4), 
+                                color: (_isListening ? Colors.red : AppColors.primaryBlue).withOpacity(0.4), 
                                 blurRadius: 20, 
                                 spreadRadius: 5
                               )
@@ -247,7 +249,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     width: double.infinity,
                     child: Container(
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(colors: [Color(0xFF007AFF), Color(0xFF00479E)]),
+                        gradient: AppColors.primaryGradient,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: ElevatedButton(
@@ -288,14 +290,46 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<TransactionProvider>(context);
+    final bool isLoading = provider.isLoading;
     final List<Transaction> sortedTransactions = provider.transactions;
+
+    // Tampilkan skeleton loading saat data pertama kali dimuat
+    if (isLoading && sortedTransactions.isEmpty) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: Column(
+          children: [
+            // Skeleton Header
+            Container(
+              height: 220,
+              decoration: const BoxDecoration(
+                gradient: AppColors.primaryGradient,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(30),
+                  bottomRight: Radius.circular(30),
+                ),
+              ),
+              child: const Center(
+                child: CircularProgressIndicator(color: Colors.white54, strokeWidth: 2),
+              ),
+            ),
+            const Spacer(),
+            Text(
+              "Memuat data keuangan...",
+              style: GoogleFonts.nunito(color: Colors.grey, fontSize: 13),
+            ),
+            const Spacer(),
+          ],
+        ),
+      );
+    }
 
     double dompetBalance = _calculateBalance(sortedTransactions, 'Dompet');
     double eWalletBalance = _calculateBalance(sortedTransactions, 'E-Wallet');
     double totalBalance = dompetBalance + eWalletBalance;
 
     String financialStatus = totalBalance < 500000 ? "Uangmu Tinggal Dikit - Irit Dulu Ya!" : "Uangmu Aman, Masih Bisa Jajan";
-    Color statusColor = totalBalance < 500000 ? const Color(0xFFFF5252) : const Color(0xFF00C853);
+    Color statusColor = totalBalance < 500000 ? AppColors.expenseRed : AppColors.incomeGreen;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor, 
@@ -352,11 +386,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       padding: const EdgeInsets.only(top: 60, left: 20, right: 20, bottom: 30),
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF007AFF), Color(0xFF00479E)],
-        ),
+        gradient: AppColors.primaryGradient,
         borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
       ),
       child: Column(
@@ -412,9 +442,9 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 20),
           Row(
             children: [
-              _buildBalanceCard(context, "Dompet", dompet, isNegative: dompet < 0),
+              BalanceCard(title: "Dompet", amount: dompet, isNegative: dompet < 0),
               const SizedBox(width: 15),
-              _buildBalanceCard(context, "E-Wallet", ewallet, isNegative: ewallet < 0),
+              BalanceCard(title: "E-Wallet", amount: ewallet, isNegative: ewallet < 0),
             ],
           ),
         ],
@@ -434,7 +464,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Text("Jalan Pintas", style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.bold)),
               IconButton(
                 onPressed: _showAddShortcutDialog, 
-                icon: const Icon(Icons.add_circle_outline, color: Color(0xFF007AFF), size: 20)
+                icon: const Icon(Icons.add_circle_outline, color: AppColors.primaryBlue, size: 20)
               )
             ],
           ),
@@ -475,7 +505,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Text("Transaksi Terbaru", style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.bold)),
               GestureDetector(
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AllTransactionsScreen())),
-                child: Text("Lihat Semua >", style: GoogleFonts.nunito(fontSize: 12, color: const Color(0xFF007AFF))),
+                child: Text("Lihat Semua >", style: GoogleFonts.nunito(fontSize: 12, color: AppColors.primaryBlue)),
               ),
             ],
           ),
@@ -511,10 +541,10 @@ class _HomeScreenState extends State<HomeScreen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: const Color(0xFF007AFF).withOpacity(0.1), 
+                color: AppColors.primaryBlue.withOpacity(0.1), 
                 shape: BoxShape.circle
               ),
-              child: Icon(AppIcons.getIcon(tx.category), size: 20, color: const Color(0xFF007AFF)),
+              child: Icon(AppIcons.getIcon(tx.category), size: 20, color: AppColors.primaryBlue),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -538,7 +568,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   "${isExpense ? '-' : '+'}${NumberFormat.currency(locale: 'id_ID', symbol: '', decimalDigits: 0).format(tx.amount)}",
                   style: GoogleFonts.nunito(
                     fontWeight: FontWeight.bold, fontSize: 15,
-                    color: isExpense ? const Color(0xFFFF5252) : const Color(0xFF00C853),
+                    color: isExpense ? AppColors.expenseRed : AppColors.incomeGreen,
                   ),
                 ),
                 Text(tx.wallet, style: GoogleFonts.nunito(color: Colors.grey, fontSize: 9)),
@@ -565,32 +595,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return income - expense;
   }
 
-  Widget _buildBalanceCard(BuildContext context, String title, double amount, {bool isNegative = false}) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor, 
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: GoogleFonts.nunito(fontSize: 12, color: Colors.grey)),
-            Text(
-              NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(amount),
-              style: GoogleFonts.nunito(
-                fontSize: 15, 
-                fontWeight: FontWeight.bold, 
-                color: isNegative ? Colors.red : Theme.of(context).textTheme.bodyLarge?.color
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildShortcutIcon(BuildContext context, IconData icon, String label, String category, double amount, String id) {
     return GestureDetector(
@@ -621,7 +625,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 )
               ]
             ),
-            child: Icon(icon, color: const Color(0xFF007AFF), size: 22),
+            child: Icon(icon, color: AppColors.primaryBlue, size: 22),
           ),
           const SizedBox(height: 6),
           Text(label, style: GoogleFonts.nunito(fontSize: 11, fontWeight: FontWeight.bold), textAlign: TextAlign.center)

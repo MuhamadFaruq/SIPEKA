@@ -1,24 +1,16 @@
-// import 'package:firebase_auth/firebase_auth.dart'; // DIKOMENTARI
-// import 'package:google_sign_in/google_sign_in.dart'; // DIKOMENTARI
-// import 'package:cloud_firestore/cloud_firestore.dart'; // DIKOMENTARI
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-// Membuat class User Dummy agar tidak error di bagian pemanggilan User?
-class MockUser {
-  final String uid;
-  final String? displayName;
-  final String? email;
-
-  MockUser({required this.uid, this.displayName, this.email});
-}
+import '../utils/security_helper.dart';
 
 class AuthService {
-  // Instance Firebase kita komentari dulu agar tidak mencari library-nya
-  // final FirebaseAuth _auth = FirebaseAuth.instance;
-  // final GoogleSignIn _googleSignIn = GoogleSignIn();
-  // final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final LocalAuthentication _localAuth = LocalAuthentication();
   // --- LOGIKA BIOMETRIC (BARU) ---
   
@@ -29,7 +21,7 @@ class AuthService {
       final bool canAuthenticate = canAuthenticateWithBiometrics || await _localAuth.isDeviceSupported();
 
       if (!canAuthenticate) {
-        print("Biometric tidak tersedia di perangkat ini.");
+        debugPrint("Biometric tidak tersedia di perangkat ini.");
         return true; // Jika tidak ada hardware-nya, izinkan masuk (atau minta PIN)
       }
 
@@ -42,33 +34,41 @@ class AuthService {
         ),
       );
     } on PlatformException catch (e) {
-      print("Error Biometric: $e");
+      debugPrint("Error Biometric: $e");
       return false;
     }
   }
-  // Mendengarkan perubahan status login (Mock Stream)
-  // Untuk sementara kita return stream kosong agar aplikasi menganggap belum login
-  Stream<MockUser?> get user => Stream.value(null);
+  Stream<User?> get user => _auth.authStateChanges();
 
-  // Fungsi Login Google (VERSI MOCK / LOKAL)
-  Future<MockUser?> signInWithGoogle() async {
+  Future<User?> signInWithGoogle() async {
     try {
-      print("Menjalankan simulasi Login Google...");
-      
-      // Simulasi delay jaringan
-      await Future.delayed(const Duration(seconds: 1));
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) return null;
 
-      // Kita buat User buatan agar UI kamu bisa lanjut ke Dashboard
-      final MockUser dummyUser = MockUser(
-        uid: "user_lokal_123",
-        displayName: "User (Lokal)",
-        email: "user@sipeka.local",
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+      final AuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
       );
 
-      print("Login Berhasil (Mode Offline)");
-      return dummyUser;
+      final UserCredential userCredential = await _auth.signInWithCredential(credential);
+      final User? user = userCredential.user;
+
+      if (user != null) {
+        final userDoc = await _firestore.collection('users').doc(user.uid).get();
+        if (!userDoc.exists) {
+          await _firestore.collection('users').doc(user.uid).set({
+            'email': user.email,
+            'displayName': user.displayName,
+            'photoURL': user.photoURL,
+            'lastLogin': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+      return user;
     } catch (e) {
-      print("Error Login Dummy: $e");
+      debugPrint("Error Login Firebase: $e");
       return null;
     }
   }
@@ -76,18 +76,32 @@ class AuthService {
   static Future<void> saveSecurityQuestion(String question, String answer) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('security_question', question);
-    await prefs.setString('security_answer', answer.toLowerCase().trim());
+    // Hash jawaban sebelum disimpan — tidak pernah simpan teks asli
+    await prefs.setString('security_answer', SecurityHelper.hash(answer));
   }
 
   static Future<bool> verifySecurityAnswer(String answer) async {
     final prefs = await SharedPreferences.getInstance();
     String? savedAnswer = prefs.getString('security_answer');
-    return savedAnswer == answer.toLowerCase().trim();
+    if (savedAnswer == null) return false;
+    // Dukung jawaban lama (plaintext) DAN jawaban baru (hashed)
+    if (savedAnswer.length == 64) {
+      // Format baru: bandingkan hash
+      return await SecurityHelper.verifyAnswer(answer, savedAnswer);
+    } else {
+      // Format lama: bandingkan langsung, lalu migrate ke hash
+      final isMatch = savedAnswer == answer.toLowerCase().trim();
+      if (isMatch) {
+        // Migrasi ke format hashed
+        await prefs.setString('security_answer', SecurityHelper.hash(answer));
+      }
+      return isMatch;
+    }
   }
 
-  // Fungsi Logout (VERSI MOCK)
   Future<void> signOut() async {
-    print("Logout berhasil (Mode Offline)");
-    // Di sini nanti logika untuk menghapus sesi lokal jika diperlukan
+    await _googleSignIn.signOut();
+    await _auth.signOut();
+    debugPrint("Logout berhasil");
   }
 }

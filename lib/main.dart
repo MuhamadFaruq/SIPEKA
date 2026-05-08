@@ -21,25 +21,21 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'utils/notification_service.dart';
 
 
-// KOMENTARI: Bagian ini harus dinonaktifkan sementara
-// import 'package:firebase_core/firebase_core.dart';
-// import 'firebase_options.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  /* Komentari inisialisasi Firebase agar build sistem Xcode 
-  tidak mencari modul yang error tadi.
   
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    print("Firebase Berhasil Terkoneksi!");
+    debugPrint("Firebase Berhasil Terkoneksi!");
   } catch (e) {
-    print("Firebase Error: $e");
+    debugPrint("Firebase Error: $e");
   }
-  */
 
   // 1. Inisialisasi data dasar
   await initializeDateFormatting('id_ID', null); 
@@ -66,9 +62,9 @@ void main() async {
   if (isReminderEnabled) {
     try {
       await NotificationService.scheduleReminder(hour: savedHour, minute: savedMinute);
-      print("Pengingat dijadwalkan pukul $savedHour:$savedMinute");
+      debugPrint("Pengingat dijadwalkan pukul $savedHour:$savedMinute");
     } catch (e) {
-      print("Gagal menjadwalkan: $e");
+      debugPrint("Gagal menjadwalkan: $e");
     }
   } else {
     await NotificationService.cancelAll();

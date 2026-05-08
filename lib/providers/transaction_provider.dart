@@ -3,23 +3,20 @@ import 'package:image_picker/image_picker.dart';
 import '../models/transaction_model.dart';
 import '../utils/ocr_helper.dart';
 import '../utils/database_helper.dart';
-import '../utils/database_helper.dart';
-// import '../services/sync_service.dart'; // Dinonaktifkan sementara
 
 class TransactionProvider with ChangeNotifier {
   List<Transaction> _transactions = [];
-  
-  // SyncService dinonaktifkan sementara untuk menghindari error Firebase
-  // final SyncService _syncService = SyncService(); 
+  bool _isLoading = false;
 
+  bool get isLoading => _isLoading;
   List<Transaction> get transactions {
     return [..._transactions]..sort((a, b) => b.date.compareTo(a.date));
   }
 
-  final TextEditingController nominalController = TextEditingController();
-
   // --- FETCH DATA (LOKAL) ---
   Future<void> fetchAndSetTransactions() async {
+    _isLoading = true;
+    notifyListeners();
     try {
       final dataList = await DatabaseHelper.instance.getAllTransactions();
       _transactions = dataList.map((item) => Transaction(
@@ -32,9 +29,11 @@ class TransactionProvider with ChangeNotifier {
         wallet: item['wallet'],
         source: item['source'] ?? 'Manual',
       )).toList();
-      notifyListeners();
     } catch (e) {
       debugPrint("Error Fetching Data: $e");
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
@@ -111,10 +110,12 @@ Future<bool> addTransaction(Transaction tx) async {
       if (pickedFile == null) return null;
 
       double? detectedTotal = await OCRHelper.extractTotal(pickedFile.path);
+      /* 
       if (detectedTotal != null) {
         nominalController.text = detectedTotal.toInt().toString();
         notifyListeners();
       }
+      */
       return detectedTotal;
     } catch (e) {
       debugPrint("Error scanning: $e");
@@ -145,7 +146,6 @@ Future<bool> addTransaction(Transaction tx) async {
 
   @override
   void dispose() {
-    nominalController.dispose();
     super.dispose();
   }
 
