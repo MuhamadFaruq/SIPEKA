@@ -7,75 +7,66 @@ import '../providers/transaction_provider.dart';
 import '../providers/budget_provider.dart';
 import '../utils/notifications.dart';
 import '../utils/constants.dart';
+import '../services/ai_service.dart';
 
 class TransactionHelper {
-  // --- 1. FUNGSI PEMROSES DATA SUARA ---
-  static void processVoiceData({
+  // --- 1. FUNGSI PEMROSES DATA SUARA DENGAN AI ---
+  static Future<void> processVoiceData({
     required BuildContext context,
     required String rawText,
-  }) {
-    String text = rawText.toLowerCase();
-    String cleanText = text.replaceAll('.', '').replaceAll(',', '');
+  }) async {
+    // Tampilkan loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+    );
 
-    double amount = 0;
-    List<String> words = cleanText.split(' ');
-    String labelText = "";
+    try {
+      final budgetProvider = Provider.of<BudgetProvider>(context, listen: false);
+      final userCategories = budgetProvider.budgets.map((b) => b.category).toList();
 
-    // Logika Multiplier
-    double currentMultiplier = 1;
-    if (cleanText.contains("juta")) currentMultiplier = 1000000;
-    else if (cleanText.contains("ribu") || cleanText.contains("rb")) currentMultiplier = 1000;
+      final aiService = AiService();
+      final parsedData = await aiService.parseVoiceToTransaction(rawText, userCategories);
 
-    // Ambil angka
-    List<String> foundNumbers = [];
-    for (var word in words) {
-      final match = RegExp(r'(\d+)').firstMatch(word);
-      if (match != null) {
-        foundNumbers.add(match.group(0)!);
-      } else if (word != "juta" && word != "ribu" && word != "jt" && word != "rb") {
-        labelText += "$word ";
+      // Tutup loading dialog
+      if (context.mounted) {
+        Navigator.pop(context);
       }
-    }
 
-    if (foundNumbers.isNotEmpty) {
-      String fullNumberStr = foundNumbers.join('');
-      amount = (double.tryParse(fullNumberStr) ?? 0) * currentMultiplier;
-    }
+      if (parsedData != null && parsedData.containsKey('amount')) {
+        // AI mengembalikan JSON dengan key yang sesuai
+        String labelText = parsedData['title']?.toString() ?? 'Transaksi Suara';
+        double amount = (parsedData['amount'] is num) 
+            ? (parsedData['amount'] as num).toDouble() 
+            : double.tryParse(parsedData['amount'].toString()) ?? 0;
+            
+        String foundCategory = parsedData['category']?.toString() ?? 'Lainnya';
 
-    if (amount == 0) {
-      SipekaNotification.showWarning(context, "Nominal tidak terdeteksi.");
-      return;
-    }
+        if (amount <= 0) {
+          if (!context.mounted) return;
+          SipekaNotification.showWarning(context, "Gagal mengekstrak data nominal dari suara.");
+          return;
+        }
 
-    // Ambil Kategori dari BudgetProvider
-    final budgetProvider = Provider.of<BudgetProvider>(context, listen: false);
-    final userCategories = budgetProvider.budgets.map((b) => b.category).toList();
-
-    String? foundCategory;
-    for (String cat in userCategories) {
-      if (text.contains(cat.toLowerCase())) {
-        foundCategory = cat;
-        break;
+        if (!context.mounted) return;
+        showConfirmationDialog(
+          context: context,
+          label: labelText.toUpperCase(),
+          category: foundCategory,
+          amount: amount,
+          icon: Icons.mic,
+          source: "Voice Command (AI)",
+        );
+      } else {
+        if (!context.mounted) return;
+        SipekaNotification.showWarning(context, "Gagal memahami instruksi suara.");
       }
-    }
-
-    if (foundCategory != null) {
-      showConfirmationDialog(
-        context: context,
-        label: labelText.trim().toUpperCase(),
-        category: foundCategory,
-        amount: amount,
-        icon: Icons.mic,
-        source: "Voice Command",
-      );
-    } else {
-      showCategorySelector(
-        context: context,
-        rawText: labelText.trim().toUpperCase(),
-        amount: amount,
-        categories: userCategories,
-        source: "Voice Command",
-      );
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context); // Tutup loading jika error
+        SipekaNotification.showWarning(context, "Terjadi kesalahan sistem saat memproses suara.");
+      }
     }
   }
 
