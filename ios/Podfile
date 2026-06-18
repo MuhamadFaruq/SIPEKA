@@ -1,4 +1,4 @@
-platform :ios, '15.5' # Versi standar yang stabil
+platform :ios, '16.0' # Firebase 12.x memerlukan minimum iOS 16.0
 
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
@@ -39,8 +39,8 @@ post_install do |installer|
     target.build_configurations.each do |config|
       config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
       config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'arm64'
-      # Pastikan deployment target di semua pod juga konsisten ke 15.5
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.5'
+      # Pastikan deployment target di semua pod juga konsisten ke 16.0
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.0'
     end
   end
 end

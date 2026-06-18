@@ -2,31 +2,36 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // Import Providers
-import 'providers/transaction_provider.dart';
-import 'providers/category_provider.dart';
-import 'providers/budget_provider.dart';
-import 'providers/wishlist_provider.dart';
-import 'providers/quick_action_provider.dart';
-import 'providers/debt_provider.dart';
-import 'providers/theme_provider.dart'; // Import Baru
+import 'package:sipeka/features/transaction/presentation/controllers/transaction_provider.dart';
+import 'package:sipeka/features/category/presentation/controllers/category_provider.dart';
+import 'package:sipeka/features/budget/presentation/controllers/budget_provider.dart';
+import 'package:sipeka/features/wishlist/presentation/controllers/wishlist_provider.dart';
+import 'package:sipeka/features/quick_action/presentation/controllers/quick_action_provider.dart';
+import 'package:sipeka/features/debt/presentation/controllers/debt_provider.dart';
+import 'package:sipeka/core/theme/theme_provider.dart';
 
 // Import Utils & Screens
-import 'utils/constants.dart';
-import 'screens/splash_screen.dart';
+import 'package:sipeka/features/auth/presentation/screens/splash_screen.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'utils/notification_service.dart';
+import 'package:sipeka/core/services/notification_service.dart';
 
 
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await dotenv.load(fileName: ".env");
+    debugPrint(".env Loaded Successfully!");
+  } catch (e) {
+    debugPrint("Error loading .env: $e");
+  }
   
   try {
     await Firebase.initializeApp(

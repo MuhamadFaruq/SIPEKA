@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../utils/constants.dart';
+import 'package:sipeka/core/constants/constants.dart';
 
 class CustomButton extends StatelessWidget {
   final String text;

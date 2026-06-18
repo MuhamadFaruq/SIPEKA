@@ -2,18 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import '../providers/transaction_provider.dart';
-import '../providers/budget_provider.dart'; 
-import '../models/transaction_model.dart';
-import 'debt_screen.dart'; 
+import 'package:sipeka/features/transaction/presentation/controllers/transaction_provider.dart';
+import 'package:sipeka/features/budget/presentation/controllers/budget_provider.dart';
+import 'package:sipeka/features/transaction/domain/entities/transaction_entity.dart';
+import 'package:sipeka/features/transaction/domain/entities/transaction_type.dart';
+import 'package:sipeka/features/debt/presentation/screens/debt_screen.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/services.dart';
-import '../utils/ocr_helper.dart';
-import '../utils/notifications.dart'; 
-import '../providers/theme_provider.dart';
-import '../utils/app_theme.dart';
-import '../widgets/custom_numpad.dart';
+import 'package:sipeka/core/services/ocr_helper.dart';
+import 'package:sipeka/core/services/notifications.dart'; 
+import 'package:sipeka/core/theme/theme_provider.dart';
+import 'package:sipeka/core/theme/app_theme.dart';
+import 'package:sipeka/widgets/custom_numpad.dart';
 
 class InputTransactionScreen extends StatefulWidget {
   final String? initialCategory;
@@ -440,21 +441,39 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
       title: _noteController.text.isEmpty ? _selectedCategory! : _noteController.text,
       amount: amount,
       date: _selectedDate,
-      type: _type == 'Pengeluaran' ? 'Expense' : 'Income',
+      type: _type == 'Pengeluaran' ? TransactionType.expense : TransactionType.income,
       category: _selectedCategory!, 
       wallet: _selectedWallet,
     );
 
-    Provider.of<TransactionProvider>(context, listen: false).addTransaction(newTx);
-    
-    final mainContext = context;
-    Navigator.pop(context);
+    // BUDGET OVERSPENDING CHECK
+    if (_type == 'Pengeluaran') {
+      final budgetProvider = Provider.of<BudgetProvider>(context, listen: false);
+      final budgetIndex = budgetProvider.budgets.indexWhere((b) => b.category == _selectedCategory);
+      
+      if (budgetIndex != -1) {
+        final budget = budgetProvider.budgets[budgetIndex];
+        final transactionProvider = Provider.of<TransactionProvider>(context, listen: false);
+        
+        // Calculate total expenses for this category in the current month
+        final now = DateTime.now();
+        double currentSpent = transactionProvider.transactions
+            .where((tx) => tx.category == _selectedCategory && 
+                           tx.type == TransactionType.expense && 
+                           tx.date.month == now.month && 
+                           tx.date.year == now.year)
+            .fold(0.0, (sum, tx) => sum + tx.amount);
 
-    Future.delayed(Duration.zero, () {
-      if (mainContext.mounted) {
-        SipekaNotification.showSuccess(mainContext, "Mantap! Transaksimu berhasil disimpan.");
+        if (currentSpent + amount > budget.limit) {
+          _showOverspendingWarningDialog(budget.limit, currentSpent + amount, () {
+            _executeSave(newTx);
+          });
+          return;
+        }
       }
-    });
+    }
+
+    _executeSave(newTx);
   }
 
   // --- FIX 1: Gunakan variabel picker global untuk konsistensi ---
@@ -528,6 +547,92 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => const Center(child: CircularProgressIndicator(color: Colors.white)),
+    );
+  }
+
+  void _executeSave(Transaction newTx) {
+    Provider.of<TransactionProvider>(context, listen: false).addTransaction(newTx);
+    
+    final mainContext = context;
+    Navigator.pop(context);
+
+    Future.delayed(Duration.zero, () {
+      if (mainContext.mounted) {
+        SipekaNotification.showSuccess(mainContext, "Mantap! Transaksimu berhasil disimpan.");
+      }
+    });
+  }
+
+  void _showOverspendingWarningDialog(double limit, double totalProjected, VoidCallback onConfirm) {
+    final diff = totalProjected - limit;
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: Theme.of(context).cardColor,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+              const SizedBox(width: 10),
+              Text("Anggaran Terlampaui!", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 18)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Pengeluaran ini akan melebihi batas anggaran kategori '$_selectedCategory'.",
+                style: GoogleFonts.nunito(fontSize: 14),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text("Batas Anggaran:", style: GoogleFonts.nunito(color: Colors.grey, fontSize: 13)),
+                  Text(
+                    NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(limit),
+                    style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                ],
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text("Total Pengeluaran:", style: GoogleFonts.nunito(color: Colors.grey, fontSize: 13)),
+                  Text(
+                    NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(totalProjected),
+                    style: GoogleFonts.nunito(fontWeight: FontWeight.bold, color: AppColors.expenseRed, fontSize: 13),
+                  ),
+                ],
+              ),
+              const Divider(height: 20),
+              Text(
+                "Lebih sebesar Rp ${NumberFormat.currency(locale: 'id_ID', symbol: '', decimalDigits: 0).format(diff)} dari batas anggaran bulanan.",
+                style: GoogleFonts.nunito(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.grey),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text("BATAL", style: GoogleFonts.nunito(color: Colors.grey, fontWeight: FontWeight.bold)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () {
+                Navigator.pop(ctx);
+                onConfirm();
+              },
+              child: Text("TETAP SIMPAN", style: GoogleFonts.nunito(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
     );
   }
 }

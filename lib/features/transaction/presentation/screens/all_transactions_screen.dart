@@ -1,10 +1,16 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import '../providers/transaction_provider.dart';
-import '../models/transaction_model.dart';
-import '../utils/constants.dart'; 
+import 'package:csv/csv.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:sipeka/features/transaction/presentation/controllers/transaction_provider.dart';
+import 'package:sipeka/features/transaction/domain/entities/transaction_entity.dart';
+import 'package:sipeka/features/transaction/domain/entities/transaction_type.dart';
+import 'package:sipeka/core/constants/constants.dart'; 
+import 'package:sipeka/core/services/notifications.dart'; 
 
 class AllTransactionsScreen extends StatefulWidget {
   const AllTransactionsScreen({super.key});
@@ -18,6 +24,11 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   DateTimeRange? _selectedDateRange;
   final TextEditingController _searchController = TextEditingController();
 
+  // Advanced filter states
+  String _selectedType = "Semua Tipe";
+  String _selectedWallet = "Semua Sumber";
+  String _selectedCategory = "Semua Kategori";
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -28,9 +39,18 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   Widget build(BuildContext context) {
     final provider = Provider.of<TransactionProvider>(context);
     
+    // Get all categories dynamically from transaction history
+    final List<String> allCategories = provider.transactions
+        .map((tx) => tx.category)
+        .toSet()
+        .toList();
+
     final List<Transaction> filteredTransactions = provider.getFilteredTransactions(
       query: _searchQuery,
       dateRange: _selectedDateRange,
+      category: _selectedCategory == "Semua Kategori" ? "Semua" : _selectedCategory,
+      wallet: _selectedWallet == "Semua Sumber" ? "Semua" : _selectedWallet,
+      type: _selectedType == "Semua Tipe" ? "Semua" : _selectedType,
     );
 
     return Scaffold(
@@ -44,12 +64,25 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
           style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
         ),
         actions: [
-          if (_selectedDateRange != null || _searchQuery.isNotEmpty)
+          IconButton(
+            icon: const Icon(Icons.ios_share, color: Colors.white),
+            tooltip: "Ekspor CSV",
+            onPressed: () => _exportToCSV(context, filteredTransactions),
+          ),
+          if (_selectedDateRange != null || 
+              _searchQuery.isNotEmpty || 
+              _selectedType != "Semua Tipe" || 
+              _selectedWallet != "Semua Sumber" || 
+              _selectedCategory != "Semua Kategori")
             IconButton(
               icon: const Icon(Icons.refresh),
+              tooltip: "Reset Filter",
               onPressed: () => setState(() {
                 _searchQuery = "";
                 _selectedDateRange = null;
+                _selectedType = "Semua Tipe";
+                _selectedWallet = "Semua Sumber";
+                _selectedCategory = "Semua Kategori";
                 _searchController.clear(); 
               }),
             ),
@@ -66,10 +99,14 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
       ),
       body: Column(
         children: [
-          _buildSearchAndFilterBar(context),
+          _buildSearchAndFilterBar(context, allCategories),
           Expanded(
             child: filteredTransactions.isEmpty
-                ? (_searchQuery.isNotEmpty || _selectedDateRange != null 
+                ? (_searchQuery.isNotEmpty || 
+                   _selectedDateRange != null || 
+                   _selectedType != "Semua Tipe" || 
+                   _selectedWallet != "Semua Sumber" || 
+                   _selectedCategory != "Semua Kategori"
                     ? _buildSearchNotFoundState() 
                     : _buildEmptyState())
                 : ListView.builder(
@@ -89,48 +126,78 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     );
   }
 
-  Widget _buildSearchAndFilterBar(BuildContext context) {
+  Widget _buildSearchAndFilterBar(BuildContext context, List<String> allCategories) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      padding: const EdgeInsets.all(15),
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
       color: Theme.of(context).cardColor,
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 15),
-              decoration: BoxDecoration(
-                color: isDark ? Colors.black26 : const Color(0xFFF2F2F7),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: TextField(
-                controller: _searchController, 
-                onChanged: (value) => setState(() => _searchQuery = value),
-                style: GoogleFonts.nunito(color: Theme.of(context).textTheme.bodyLarge?.color),
-                decoration: InputDecoration(
-                  hintText: "Cari transaksi...",
-                  hintStyle: GoogleFonts.nunito(color: Colors.grey, fontSize: 14),
-                  border: InputBorder.none,
-                  icon: const Icon(Icons.search, size: 20, color: Colors.grey),
-                  suffixIcon: _searchQuery.isNotEmpty 
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, size: 18),
-                        onPressed: () => setState(() {
-                          _searchQuery = "";
-                          _searchController.clear(); 
-                        }),
-                      ) 
-                    : null,
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 15),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.black26 : const Color(0xFFF2F2F7),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: TextField(
+                    controller: _searchController, 
+                    onChanged: (value) => setState(() => _searchQuery = value),
+                    style: GoogleFonts.nunito(color: Theme.of(context).textTheme.bodyLarge?.color),
+                    decoration: InputDecoration(
+                      hintText: "Cari transaksi...",
+                      hintStyle: GoogleFonts.nunito(color: Colors.grey, fontSize: 14),
+                      border: InputBorder.none,
+                      icon: const Icon(Icons.search, size: 20, color: Colors.grey),
+                      suffixIcon: _searchQuery.isNotEmpty 
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 18),
+                            onPressed: () => setState(() {
+                              _searchQuery = "";
+                              _searchController.clear(); 
+                            }),
+                          ) 
+                        : null,
+                    ),
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(width: 10),
+              IconButton(
+                onPressed: _showDateFilter,
+                icon: Icon(
+                  Icons.calendar_month_outlined,
+                  color: _selectedDateRange != null ? const Color(0xFF007AFF) : Colors.grey,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 10),
-          IconButton(
-            onPressed: _showDateFilter,
-            icon: Icon(
-              Icons.calendar_month_outlined,
-              color: _selectedDateRange != null ? const Color(0xFF007AFF) : Colors.grey,
+          const SizedBox(height: 10),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(
+              children: [
+                _buildFilterDropdown(
+                  value: _selectedType,
+                  items: ["Semua Tipe", "Pemasukan", "Pengeluaran"],
+                  onChanged: (val) => setState(() => _selectedType = val!),
+                ),
+                const SizedBox(width: 8),
+                _buildFilterDropdown(
+                  value: _selectedWallet,
+                  items: ["Semua Sumber", "Dompet", "E-Wallet"],
+                  onChanged: (val) => setState(() => _selectedWallet = val!),
+                ),
+                const SizedBox(width: 8),
+                _buildFilterDropdown(
+                  value: _selectedCategory,
+                  items: ["Semua Kategori", ...allCategories],
+                  onChanged: (val) => setState(() => _selectedCategory = val!),
+                ),
+              ],
             ),
           ),
         ],
@@ -139,7 +206,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   }
 
   Widget _buildTransactionCard(BuildContext context, Transaction tx) {
-    bool isExpense = tx.type == 'Expense' || tx.type == 'Pengeluaran';
+    bool isExpense = tx.type == TransactionType.expense;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
@@ -347,6 +414,96 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
         return Colors.blueGrey;
       default:
         return Colors.grey;
+    }
+  }
+
+  Widget _buildFilterDropdown({
+    required String value,
+    required List<String> items,
+    required ValueChanged<String?> onChanged,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bool isFiltered = !value.startsWith("Semua");
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.black26 : const Color(0xFFF2F2F7),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isFiltered ? const Color(0xFF007AFF) : Colors.transparent,
+          width: 1.5,
+        ),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          isDense: true,
+          style: GoogleFonts.nunito(
+            color: isFiltered 
+                ? const Color(0xFF007AFF) 
+                : (isDark ? Colors.white70 : Colors.black87),
+            fontWeight: isFiltered ? FontWeight.bold : FontWeight.normal,
+            fontSize: 12,
+          ),
+          icon: Icon(
+            Icons.arrow_drop_down,
+            size: 18,
+            color: isFiltered ? const Color(0xFF007AFF) : Colors.grey,
+          ),
+          dropdownColor: Theme.of(context).cardColor,
+          items: items.map((String item) {
+            return DropdownMenuItem<String>(
+              value: item,
+              child: Text(item, style: GoogleFonts.nunito(fontSize: 12)),
+            );
+          }).toList(),
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _exportToCSV(BuildContext context, List<Transaction> txList) async {
+    if (txList.isEmpty) {
+      SipekaNotification.showWarning(context, "Tidak ada data transaksi untuk diekspor.");
+      return;
+    }
+
+    try {
+      List<List<dynamic>> rows = [];
+      
+      // Header
+      rows.add(["ID", "Tanggal", "Kategori", "Catatan/Judul", "Tipe", "Nominal", "Dompet/Wallet", "Sumber Input"]);
+      
+      // Data
+      for (var tx in txList) {
+        rows.add([
+          tx.id,
+          DateFormat('yyyy-MM-dd HH:mm:ss').format(tx.date),
+          tx.category,
+          tx.title,
+          tx.type == TransactionType.income ? "Pemasukan" : "Pengeluaran",
+          tx.amount,
+          tx.wallet,
+          tx.source,
+        ]);
+      }
+      
+      String csvData = const ListToCsvConverter().convert(rows);
+      
+      final directory = await getTemporaryDirectory();
+      final String path = "${directory.path}/sipeka_transaksi_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.csv";
+      final File file = File(path);
+      await file.writeAsString(csvData);
+      
+      if (context.mounted) {
+        await Share.shareXFiles([XFile(path)], text: 'Ekspor Riwayat Transaksi SIPEKA');
+      }
+    } catch (e) {
+      debugPrint("Gagal mengekspor CSV: $e");
+      if (context.mounted) {
+        SipekaNotification.showWarning(context, "Gagal mengekspor data.");
+      }
     }
   }
 }

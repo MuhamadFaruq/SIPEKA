@@ -7,26 +7,27 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:permission_handler/permission_handler.dart';
 
 // Import Provider
-import '../providers/transaction_provider.dart';
-import '../providers/quick_action_provider.dart';
-import '../providers/budget_provider.dart'; 
-import '../providers/theme_provider.dart';
+import 'package:sipeka/features/transaction/presentation/controllers/transaction_provider.dart';
+import 'package:sipeka/features/quick_action/presentation/controllers/quick_action_provider.dart';
+import 'package:sipeka/features/budget/presentation/controllers/budget_provider.dart';
+import 'package:sipeka/core/theme/theme_provider.dart';
 
 // Import Model & Utils
-import '../models/transaction_model.dart';
-import '../models/quick_action_model.dart';
-import '../utils/formatters.dart'; 
-import '../utils/constants.dart' hide AppColors;
-import '../utils/notifications.dart'; 
-import '../utils/transaction_helper.dart'; // Import Helper Baru
+import 'package:sipeka/features/transaction/domain/entities/transaction_entity.dart';
+import 'package:sipeka/features/quick_action/domain/entities/quick_action_entity.dart';
+import 'package:sipeka/core/utils/formatters.dart'; 
+import 'package:sipeka/core/constants/constants.dart' hide AppColors;
+import 'package:sipeka/core/services/notifications.dart'; 
+import 'package:sipeka/features/transaction/presentation/utils/transaction_helper.dart';
 
 // Import Screen
 import 'all_transactions_screen.dart';
-import 'settings_screen.dart'; 
+import 'ai_chat_screen.dart';
+import 'package:sipeka/features/settings/presentation/screens/settings_screen.dart';
 
-import '../widgets/transaction_pie_chart.dart';
-import '../widgets/balance_card.dart';
-import '../utils/app_theme.dart';
+import 'package:sipeka/features/transaction/presentation/widgets/transaction_pie_chart.dart';
+import 'package:sipeka/widgets/balance_card.dart';
+import 'package:sipeka/core/theme/app_theme.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -290,6 +291,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<TransactionProvider>(context);
+    final themeProvider = Provider.of<ThemeProvider>(context);
     final bool isLoading = provider.isLoading;
     final List<Transaction> sortedTransactions = provider.transactions;
 
@@ -328,24 +330,48 @@ class _HomeScreenState extends State<HomeScreen> {
     double eWalletBalance = _calculateBalance(sortedTransactions, 'E-Wallet');
     double totalBalance = dompetBalance + eWalletBalance;
 
-    String financialStatus = totalBalance < 500000 ? "Uangmu Tinggal Dikit - Irit Dulu Ya!" : "Uangmu Aman, Masih Bisa Jajan";
+    String financialStatus;
+    if (totalBalance <= 0) {
+      financialStatus = "Waduh, Uangmu Habis! Cari Cuan Dulu Yuk.";
+    } else if (totalBalance < 500000) {
+      financialStatus = "Uangmu Tinggal Dikit Lho - Irit Dulu Ya!";
+    } else {
+      financialStatus = "Uangmu Aman, Masih Bisa Jajan";
+    }
     Color statusColor = totalBalance < 500000 ? AppColors.expenseRed : AppColors.incomeGreen;
+    final double statusBarHeight = MediaQuery.of(context).padding.top;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor, 
       body: RefreshIndicator( 
         onRefresh: () async => await provider.loadTransactions(),
-        child: SingleChildScrollView(
+        child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(context, dompetBalance, eWalletBalance, statusColor, financialStatus),
-              _buildInsightsSection(context), 
-              _buildQuickActionsSection(context),
-              _buildLatestTransactionsSection(context, sortedTransactions),
-            ],
-          ),
+          slivers: [
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: CollapsingHeaderDelegate(
+                statusBarHeight: statusBarHeight,
+                dompetBalance: dompetBalance,
+                eWalletBalance: eWalletBalance,
+                userName: themeProvider.userName,
+                statusText: financialStatus,
+                statusColor: statusColor,
+                onVoicePressed: _showVoiceInputDialog,
+                onSettingsPressed: () => Navigator.push(
+                  context, 
+                  MaterialPageRoute(builder: (context) => const SettingsScreen())
+                ),
+                onAiChatPressed: () => Navigator.push(
+                  context, 
+                  MaterialPageRoute(builder: (context) => const AiChatScreen())
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(child: _buildInsightsSection(context)),
+            SliverToBoxAdapter(child: _buildQuickActionsSection(context)),
+            SliverToBoxAdapter(child: _buildLatestTransactionsSection(context, sortedTransactions)),
+          ],
         ),
       ),
     );
@@ -376,76 +402,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 Expanded(flex: 2, child: SizedBox(height: 130, child: TransactionPieChart())),
               ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeader(BuildContext context, double dompet, double ewallet, Color statusColor, String statusText) {
-    return Container(
-      padding: const EdgeInsets.only(top: 60, left: 20, right: 20, bottom: 30),
-      decoration: const BoxDecoration(
-        gradient: AppColors.primaryGradient,
-        borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Consumer<ThemeProvider>(
-                builder: (context, themeProvider, child) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Hallo ${themeProvider.userName}", 
-                        style: GoogleFonts.nunito(
-                          fontSize: 20, 
-                          fontWeight: FontWeight.bold, 
-                          color: Colors.white
-                        )
-                      ),
-                      Text(
-                        "Duitmu Aman Kok", 
-                        style: GoogleFonts.nunito(fontSize: 14, color: Colors.white70)
-                      ),
-                    ],
-                  );
-                },
-              ),
-              Row(
-                children: [
-                  IconButton(
-                    onPressed: _showVoiceInputDialog,
-                    icon: const Icon(Icons.mic_none_rounded, color: Colors.white, size: 28)
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.push(
-                      context, 
-                      MaterialPageRoute(builder: (context) => const SettingsScreen())
-                    ), 
-                    icon: const Icon(Icons.settings_outlined, color: Colors.white)
-                  ),
-                ],
-              )
-            ],
-          ),
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(color: statusColor, borderRadius: BorderRadius.circular(20)),
-            child: Text(statusText, style: GoogleFonts.nunito(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              BalanceCard(title: "Dompet", amount: dompet, isNegative: dompet < 0),
-              const SizedBox(width: 15),
-              BalanceCard(title: "E-Wallet", amount: ewallet, isNegative: ewallet < 0),
-            ],
           ),
         ],
       ),
@@ -632,5 +588,218 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
+  }
+}
+
+class CollapsingHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final double statusBarHeight;
+  final double dompetBalance;
+  final double eWalletBalance;
+  final String userName;
+  final String statusText;
+  final Color statusColor;
+  final VoidCallback onVoicePressed;
+  final VoidCallback onSettingsPressed;
+  final VoidCallback onAiChatPressed;
+
+  CollapsingHeaderDelegate({
+    required this.statusBarHeight,
+    required this.dompetBalance,
+    required this.eWalletBalance,
+    required this.userName,
+    required this.statusText,
+    required this.statusColor,
+    required this.onVoicePressed,
+    required this.onSettingsPressed,
+    required this.onAiChatPressed,
+  });
+
+  @override
+  double get minExtent => statusBarHeight + 70.0; // Collapsed height
+
+  @override
+  double get maxExtent => statusBarHeight + 210.0; // Expanded height
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    // Calculate collapse ratio (0.0 fully expanded, 1.0 fully collapsed)
+    final double delta = maxExtent - minExtent;
+    final double percent = (shrinkOffset / (delta > 0 ? delta : 1.0)).clamp(0.0, 1.0);
+
+    // Opacities for smooth transition
+    final double expandedOpacity = (1.0 - percent * 2.0).clamp(0.0, 1.0);
+    final double collapsedOpacity = (percent - 0.5).clamp(0.0, 1.0) * 2.0;
+
+    // Corner radius of the header collapses from 30 to 0
+    final double borderRadius = (30.0 * (1.0 - percent)).clamp(0.0, 30.0);
+
+    final double totalBalance = dompetBalance + eWalletBalance;
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: AppColors.primaryGradient,
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(borderRadius),
+          bottomRight: Radius.circular(borderRadius),
+        ),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20.0),
+          child: Stack(
+            children: [
+              // Top row content (Greeting vs. Total Saldo + Icons)
+              Positioned(
+                top: 10,
+                left: 0,
+                right: 0,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Transitioning title
+                    Expanded(
+                      child: Stack(
+                        alignment: Alignment.centerLeft,
+                        children: [
+                          Opacity(
+                            opacity: expandedOpacity,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  "Hallo $userName",
+                                  style: GoogleFonts.nunito(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  "Duitmu Aman Kok",
+                                  style: GoogleFonts.nunito(
+                                    fontSize: 14,
+                                    color: Colors.white70,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Opacity(
+                            opacity: collapsedOpacity,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  "Total Saldo",
+                                  style: GoogleFonts.nunito(
+                                    fontSize: 12,
+                                    color: Colors.white70,
+                                  ),
+                                ),
+                                Text(
+                                  NumberFormat.currency(
+                                    locale: 'id_ID',
+                                    symbol: 'Rp ',
+                                    decimalDigits: 0,
+                                  ).format(totalBalance),
+                                  style: GoogleFonts.nunito(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Action Buttons (Mic, AI Chat & Settings)
+                    Row(
+                      children: [
+                        IconButton(
+                          onPressed: onAiChatPressed,
+                          icon: const Icon(Icons.smart_toy_outlined, color: Colors.white, size: 26),
+                          tooltip: "AI Chatbot",
+                        ),
+                        IconButton(
+                          onPressed: onVoicePressed,
+                          icon: const Icon(Icons.mic_none_rounded, color: Colors.white, size: 28),
+                        ),
+                        IconButton(
+                          onPressed: onSettingsPressed,
+                          icon: const Icon(Icons.settings_outlined, color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // Expanded components (Status badge and balance cards)
+              if (expandedOpacity > 0)
+                Positioned(
+                  top: 70,
+                  left: 0,
+                  right: 0,
+                  child: Opacity(
+                    opacity: expandedOpacity,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: statusColor,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            statusText,
+                            style: GoogleFonts.nunito(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        Row(
+                          children: [
+                            BalanceCard(
+                              title: "Dompet",
+                              amount: dompetBalance,
+                              isNegative: dompetBalance < 0,
+                            ),
+                            const SizedBox(width: 15),
+                            BalanceCard(
+                              title: "E-Wallet",
+                              amount: eWalletBalance,
+                              isNegative: eWalletBalance < 0,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant CollapsingHeaderDelegate oldDelegate) {
+    return oldDelegate.dompetBalance != dompetBalance ||
+        oldDelegate.eWalletBalance != eWalletBalance ||
+        oldDelegate.userName != userName ||
+        oldDelegate.statusText != statusText ||
+        oldDelegate.statusColor != statusColor;
   }
 }

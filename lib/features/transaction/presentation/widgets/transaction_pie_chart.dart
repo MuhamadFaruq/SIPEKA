@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import '../providers/transaction_provider.dart';
+import 'package:sipeka/features/transaction/presentation/controllers/transaction_provider.dart';
 
 class TransactionPieChart extends StatelessWidget {
   const TransactionPieChart({super.key});
