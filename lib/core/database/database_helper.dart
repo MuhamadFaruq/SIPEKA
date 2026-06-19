@@ -10,7 +10,7 @@ class DatabaseHelper {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('sipeka.db');
+    _database = await _initDB('sipeka_v4.db');
     return _database!;
   }
 
@@ -20,7 +20,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -35,7 +35,7 @@ class DatabaseHelper {
         date TEXT,
         type TEXT,
         category TEXT,
-        wallet TEXT
+        wallet TEXT,
         source TEXT
       )
     ''');
