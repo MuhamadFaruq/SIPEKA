@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:sqflite/sqflite.dart' show ConflictAlgorithm;
 import 'package:sipeka/features/transaction/domain/entities/transaction_entity.dart';
+import 'package:sipeka/features/transaction/domain/entities/transaction_type.dart';
 import 'package:sipeka/features/debt/domain/entities/debt_entity.dart';
 import 'package:sipeka/features/debt/data/models/debt_model.dart';
 import 'package:sipeka/features/budget/domain/entities/budget_entity.dart';
@@ -21,37 +23,53 @@ class SyncService {
   Future<void> syncTransactions(List<Transaction> transactions) async {
     if (_userId == null) return;
 
-    final batch = _firestore.batch();
     final collection = _firestore.collection('users').doc(_userId).collection('transactions');
+    const int batchLimit = 500;
 
-    for (var tx in transactions) {
-      final docRef = collection.doc(tx.id);
-      batch.set(docRef, {
-        'title': tx.title,
-        'amount': tx.amount,
-        'category': tx.category,
-        'wallet': tx.wallet,
-        'type': tx.type,
-        'date': tx.date.toIso8601String(),
-        'source': tx.source,
-      });
+    for (var i = 0; i < transactions.length; i += batchLimit) {
+      final batch = _firestore.batch();
+      final chunk = transactions.sublist(
+        i,
+        i + batchLimit > transactions.length ? transactions.length : i + batchLimit,
+      );
+
+      for (var tx in chunk) {
+        final docRef = collection.doc(tx.id);
+        batch.set(docRef, {
+          'title': tx.title,
+          'amount': tx.amount,
+          'category': tx.category,
+          'wallet': tx.wallet,
+          'type': tx.type.dbValue,
+          'date': tx.date.toIso8601String(),
+          'source': tx.source,
+        });
+      }
+      await batch.commit();
     }
-    await batch.commit();
   }
 
   // --- SINKRONISASI HUTANG ---
   Future<void> syncDebts(List<Debt> debts) async {
     if (_userId == null) return;
 
-    final batch = _firestore.batch();
     final collection = _firestore.collection('users').doc(_userId).collection('debts');
+    const int batchLimit = 500;
 
-    for (var d in debts) {
-      final docRef = collection.doc(d.id);
-      final model = DebtModel.fromEntity(d);
-      batch.set(docRef, model.toJson());
+    for (var i = 0; i < debts.length; i += batchLimit) {
+      final batch = _firestore.batch();
+      final chunk = debts.sublist(
+        i,
+        i + batchLimit > debts.length ? debts.length : i + batchLimit,
+      );
+
+      for (var d in chunk) {
+        final docRef = collection.doc(d.id);
+        final model = DebtModel.fromEntity(d);
+        batch.set(docRef, model.toJson());
+      }
+      await batch.commit();
     }
-    await batch.commit();
   }
 
   // --- RESTORE TRANSAKSI ---
@@ -71,7 +89,7 @@ class SyncService {
         title: data['title'],
         amount: (data['amount'] as num).toDouble(),
         date: DateTime.parse(data['date']),
-        type: data['type'],
+        type: TransactionType.fromString(data['type'] as String?),
         category: data['category'],
         wallet: data['wallet'],
         source: data['source'] ?? 'Manual',
@@ -97,14 +115,23 @@ class SyncService {
   // --- SINKRONISASI BUDGET ---
   Future<void> syncBudgets(List<Budget> budgets) async {
     if (_userId == null) return;
-    final batch = _firestore.batch();
-    final collection = _firestore.collection('users').doc(_userId).collection('budgets');
 
-    for (var b in budgets) {
-      final model = BudgetModel.fromEntity(b);
-      batch.set(collection.doc(b.id), model.toJson());
+    final collection = _firestore.collection('users').doc(_userId).collection('budgets');
+    const int batchLimit = 500;
+
+    for (var i = 0; i < budgets.length; i += batchLimit) {
+      final batch = _firestore.batch();
+      final chunk = budgets.sublist(
+        i,
+        i + batchLimit > budgets.length ? budgets.length : i + batchLimit,
+      );
+
+      for (var b in chunk) {
+        final model = BudgetModel.fromEntity(b);
+        batch.set(collection.doc(b.id), model.toJson());
+      }
+      await batch.commit();
     }
-    await batch.commit();
   }
 
   Future<List<Budget>> getBudgetsFromCloud() async {
@@ -119,14 +146,23 @@ class SyncService {
   // --- SINKRONISASI WISHLIST ---
   Future<void> syncWishlist(List<WishlistItem> items) async {
     if (_userId == null) return;
-    final batch = _firestore.batch();
-    final collection = _firestore.collection('users').doc(_userId).collection('wishlist');
 
-    for (var item in items) {
-      final model = WishlistModel.fromEntity(item);
-      batch.set(collection.doc(item.id), model.toJson());
+    final collection = _firestore.collection('users').doc(_userId).collection('wishlist');
+    const int batchLimit = 500;
+
+    for (var i = 0; i < items.length; i += batchLimit) {
+      final batch = _firestore.batch();
+      final chunk = items.sublist(
+        i,
+        i + batchLimit > items.length ? items.length : i + batchLimit,
+      );
+
+      for (var item in chunk) {
+        final model = WishlistModel.fromEntity(item);
+        batch.set(collection.doc(item.id), model.toJson());
+      }
+      await batch.commit();
     }
-    await batch.commit();
   }
 
   Future<List<WishlistItem>> getWishlistFromCloud() async {
@@ -141,14 +177,22 @@ class SyncService {
   // --- SINKRONISASI KATEGORI ---
   Future<void> syncCategories(List<models.Category> categories) async {
     if (_userId == null) return;
-    final batch = _firestore.batch();
     final collection = _firestore.collection('users').doc(_userId).collection('categories');
+    const int batchLimit = 500;
 
-    for (var cat in categories) {
-      final model = CategoryModel.fromEntity(cat);
-      batch.set(collection.doc(cat.id), model.toJson());
+    for (var i = 0; i < categories.length; i += batchLimit) {
+      final batch = _firestore.batch();
+      final chunk = categories.sublist(
+        i,
+        i + batchLimit > categories.length ? categories.length : i + batchLimit,
+      );
+
+      for (var cat in chunk) {
+        final model = CategoryModel.fromEntity(cat);
+        batch.set(collection.doc(cat.id), model.toJson());
+      }
+      await batch.commit();
     }
-    await batch.commit();
   }
 
   // --- RESTORE KATEGORI ---
@@ -206,5 +250,94 @@ class SyncService {
     await syncBudgets(budgets);
     await syncDebts(debts);
     await syncWishlist(wishlists);
+  }
+
+  /// Memulihkan semua data dari Firebase Cloud ke SQLite lokal.
+  Future<void> restoreAllData() async {
+    if (_userId == null) {
+      throw Exception("User belum login");
+    }
+
+    // 1. Ambil data dari cloud
+    final transactions = await getTransactionsFromCloud();
+    final budgets = await getBudgetsFromCloud();
+    final debts = await getDebtsFromCloud();
+    final wishlist = await getWishlistFromCloud();
+
+    final db = await DatabaseHelper.instance.database;
+
+    // 2. Jalankan semua pembersihan dan penyimpanan dalam satu SQLite transaction
+    await db.transaction((txn) async {
+      // Bersihkan semua tabel terlebih dahulu
+      await txn.delete('transactions');
+      await txn.delete('budgets');
+      await txn.delete('wishlist');
+      await txn.delete('debts');
+      await txn.delete('chat_messages');
+
+      // 3. Masukkan transaksi ke SQLite lokal
+      for (var tx in transactions) {
+        await txn.insert(
+          'transactions',
+          {
+            'id': tx.id,
+            'title': tx.title,
+            'amount': tx.amount,
+            'date': tx.date.toIso8601String(),
+            'type': tx.type.dbValue,
+            'category': tx.category,
+            'wallet': tx.wallet,
+            'source': tx.source,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+
+      // 4. Masukkan budgets ke SQLite lokal
+      for (var b in budgets) {
+        await txn.insert(
+          'budgets',
+          {
+            'id': b.id,
+            'category': b.category,
+            'limit_amount': b.limit,
+            'icon_code': b.iconCode,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+
+      // 5. Masukkan debts ke SQLite lokal
+      for (var d in debts) {
+        await txn.insert(
+          'debts',
+          {
+            'id': d.id,
+            'name': d.name,
+            'amount': d.amount,
+            'date': d.date.toIso8601String(),
+            'type': d.type,
+            'is_paid': d.isPaid ? 1 : 0,
+            'paid_date': d.paidDate?.toIso8601String(),
+            'notes': d.notes,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+
+      // 6. Masukkan wishlist ke SQLite lokal
+      for (var w in wishlist) {
+        await txn.insert(
+          'wishlist',
+          {
+            'title': w.title,
+            'target': w.targetAmount,
+            'collected': w.savedAmount,
+            'icon_code': 0, // default
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
   }
 }

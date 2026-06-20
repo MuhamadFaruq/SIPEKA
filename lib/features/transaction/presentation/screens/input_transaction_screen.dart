@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 import 'package:sipeka/features/transaction/presentation/controllers/transaction_provider.dart';
 import 'package:sipeka/features/budget/presentation/controllers/budget_provider.dart';
 import 'package:sipeka/features/transaction/domain/entities/transaction_entity.dart';
@@ -95,7 +96,7 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.receipt_long), 
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const DebtScreen())),
+            onPressed: () => Navigator.push(context, SmoothPageRoute(child: const DebtScreen())),
           )
         ],
       ),
@@ -381,7 +382,7 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
     double bal = 0;
     for (var tx in transactions) {
       if (tx.wallet == walletName) {
-        if (tx.type == 'Income' || tx.type == 'Pemasukan') {
+        if (tx.type == TransactionType.income) {
           bal += tx.amount;
         } else {
           bal -= tx.amount;
@@ -436,7 +437,7 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
     }
 
     final newTx = Transaction(
-      id: DateTime.now().toString(),
+      id: const Uuid().v4(),
       // Gunakan null check operator ! karena sudah divalidasi di atas
       title: _noteController.text.isEmpty ? _selectedCategory! : _noteController.text,
       amount: amount,
@@ -522,11 +523,24 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
       ],
     );
 
-    if (croppedFile != null) {
-      _showLoadingDialog();
+    if (croppedFile == null) return;
+
+    BuildContext? dialogContext;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        dialogContext = ctx;
+        return const Center(child: CircularProgressIndicator(color: Colors.white));
+      },
+    );
+
+    try {
       double? result = await OCRHelper.extractTotal(croppedFile.path);
       
-      if (mounted) Navigator.pop(context); 
+      if (dialogContext != null && dialogContext!.mounted) {
+        Navigator.pop(dialogContext!);
+      }
 
       if (result != null && result > 0) {
         HapticFeedback.lightImpact();
@@ -535,32 +549,57 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
           _type = 'Pengeluaran'; 
           _selectedCategory = null;
         });
-        SipekaNotification.showSuccess(context, "Berhasil mendeteksi: ${_formatCurrency(_inputAmount)}");
+        if (mounted) {
+          SipekaNotification.showSuccess(context, "Berhasil mendeteksi: ${_formatCurrency(_inputAmount)}");
+        }
       } else {
-        SipekaNotification.showWarning(context, "Gagal mendeteksi angka. Coba foto ulang.");
+        if (mounted) {
+          SipekaNotification.showWarning(context, "Gagal mendeteksi angka. Coba foto ulang.");
+        }
+      }
+    } catch (e) {
+      if (dialogContext != null && dialogContext!.mounted) {
+        Navigator.pop(dialogContext!);
+      }
+      if (mounted) {
+        SipekaNotification.showWarning(context, "Gagal memproses gambar: $e");
       }
     }
   }
 
-  void _showLoadingDialog() {
+
+
+  void _executeSave(Transaction newTx) async {
+    // Tampilkan loading dialog
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator(color: Colors.white)),
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
     );
-  }
 
-  void _executeSave(Transaction newTx) {
-    Provider.of<TransactionProvider>(context, listen: false).addTransaction(newTx);
-    
-    final mainContext = context;
-    Navigator.pop(context);
-
-    Future.delayed(Duration.zero, () {
-      if (mainContext.mounted) {
-        SipekaNotification.showSuccess(mainContext, "Mantap! Transaksimu berhasil disimpan.");
+    try {
+      final success = await Provider.of<TransactionProvider>(context, listen: false).addTransaction(newTx);
+      
+      // Tutup loading dialog secara aman
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      
+      if (success) {
+        if (mounted) {
+          Navigator.pop(context); // Kembali ke screen sebelumnya menggunakan screen's navigator
+          SipekaNotification.showSuccess(context, "Mantap! Transaksimu berhasil disimpan.");
+        }
+      } else {
+        if (mounted) {
+          SipekaNotification.showWarning(context, "Gagal menyimpan transaksi ke database.");
+        }
       }
-    });
+    } catch (e) {
+      // Tutup loading jika error secara aman
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (mounted) {
+        SipekaNotification.showWarning(context, "Terjadi kesalahan: $e");
+      }
+    }
   }
 
   void _showOverspendingWarningDialog(double limit, double totalProjected, VoidCallback onConfirm) {

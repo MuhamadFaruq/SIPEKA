@@ -15,6 +15,19 @@ class MainNavigation extends StatefulWidget {
 
 class _MainNavigationState extends State<MainNavigation> {
   int _selectedIndex = 0;
+  late final PageController _pageController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: _selectedIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   final List<Widget> _screens = [
     const HomeScreen(),
@@ -24,9 +37,11 @@ class _MainNavigationState extends State<MainNavigation> {
   ];
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
   }
 
   void _onFabTapped() async { 
@@ -36,9 +51,11 @@ class _MainNavigationState extends State<MainNavigation> {
     );
 
     if (result != null && result is int) {
-      setState(() {
-        _selectedIndex = result;
-      });
+      _pageController.animateToPage(
+        result,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
     }
   }
 
@@ -54,8 +71,16 @@ class _MainNavigationState extends State<MainNavigation> {
     final Color navBarColor = isDark ? Theme.of(context).cardColor : primaryBlue;
 
     return Scaffold(
-      resizeToAvoidBottomInset: false, 
-      body: _screens[_selectedIndex],
+      resizeToAvoidBottomInset: false,
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
+        children: _screens,
+      ),
 
       // FAB Besar di Tengah
       floatingActionButton: SizedBox(
@@ -124,17 +149,31 @@ class _MainNavigationState extends State<MainNavigation> {
 
     return InkWell(
       onTap: () => _onItemTapped(index),
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+      borderRadius: BorderRadius.circular(20),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? (isDark
+                  ? const Color(0xFF2972FF).withValues(alpha: 0.1)
+                  : Colors.white.withValues(alpha: 0.15))
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              color: contentColor,
-              size: 24,
+            AnimatedScale(
+              scale: isSelected ? 1.18 : 1.0,
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOutBack,
+              child: Icon(
+                icon,
+                color: contentColor,
+                size: 24,
+              ),
             ),
             const SizedBox(height: 2),
             Text(

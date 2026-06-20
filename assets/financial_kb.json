@@ -1,0 +1,27 @@
+[
+  {
+    "keywords": ["anggaran", "budget", "pos", "kategori", "bagi", "membagi"],
+    "title": "Cara Membuat Anggaran yang Efektif",
+    "content": "Untuk membuat anggaran yang baik, gunakan metode 50/30/20: 50% untuk kebutuhan pokok (makan, tagihan, transportasi), 30% untuk keinginan (hiburan, hobi, belanja santai), dan 20% untuk tabungan atau investasi. Di SIPEKA, Anda bisa mengatur batas anggaran per kategori di menu 'Anggaran'."
+  },
+  {
+    "keywords": ["hutang", "piutang", "pinjam", "pinjaman", "bayar", "lunas", "tagihan"],
+    "title": "Strategi Melunasi Hutang",
+    "content": "Ada dua metode populer untuk melunasi hutang: 1) Metode Avalanche: Lunasi hutang dengan bunga tertinggi terlebih dahulu untuk menghemat biaya bunga. 2) Metode Snowball: Lunasi hutang dengan saldo terkecil terlebih dahulu untuk mendapatkan motivasi psikologis. Catat seluruh hutang piutang Anda di menu 'Hutang' SIPEKA."
+  },
+  {
+    "keywords": ["tabungan", "menabung", "simpan", "dana darurat", "wishlist", "impian", "target"],
+    "title": "Tips Membangun Dana Darurat & Tabungan",
+    "content": "Dana darurat ideal adalah 3 hingga 6 kali pengeluaran bulanan Anda. Simpan dana darurat di tempat yang aman dan mudah diakses (likuid) namun terpisah dari rekening belanja harian. Di SIPEKA, Anda dapat membuat target menabung secara bertahap melalui menu 'Wishlist'."
+  },
+  {
+    "keywords": ["hemat", "boros", "kurangi", "berhemat", "belanja", "impulsif"],
+    "title": "Cara Mengatasi Kebiasaan Boros",
+    "content": "1) Terapkan aturan 24 jam sebelum membeli barang keinginan untuk menghindari pembelian impulsif. 2) Selalu catat setiap pengeluaran kecil karena kebocoran halus (seperti kopi harian) sering kali membuat keuangan bolong. Gunakan menu 'Rumah' di SIPEKA untuk mencatat transaksi harian Anda dengan cepat."
+  },
+  {
+    "keywords": ["sipeka", "aplikasi", "fitur", "bantuan", "panduan", "cara"],
+    "title": "Panduan Menggunakan Fitur SIPEKA",
+    "content": "SIPEKA (Sistem Pencatatan Keuangan Pribadi) membantu Anda mengelola uang dengan fitur: 1) Pencatatan transaksi manual, cepat, lewat suara (AI), atau foto nota (OCR). 2) Batasan anggaran per kategori dengan indikator. 3) Pengingat harian otomatis. 4) Wishlist target tabungan. 5) Pengelolaan catatan hutang piutang. 6) AI Consultant untuk tanya jawab finansial."
+  }
+]

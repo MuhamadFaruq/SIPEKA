@@ -5,6 +5,8 @@ import 'package:sipeka/core/constants/constants.dart';
 import 'package:sipeka/widgets/custom_button.dart';
 import 'package:sipeka/core/services/notifications.dart'; 
 import 'package:sipeka/features/dashboard/presentation/screens/main_navigation.dart';
+import 'package:provider/provider.dart';
+import 'package:sipeka/core/theme/theme_provider.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -72,7 +74,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     
     final name = _nameController.text.trim();
     if (name.isNotEmpty) {
-      await prefs.setString('user_name', name);
+      // Perbarui nama melalui ThemeProvider agar langsung terhubung ke settings dan seluruh aplikasi
+      Provider.of<ThemeProvider>(context, listen: false).updateName(name);
     }
 
     if (mounted) {

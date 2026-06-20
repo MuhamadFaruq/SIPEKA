@@ -31,7 +31,7 @@ class CategoryProvider with ChangeNotifier {
       if (list.isEmpty) {
         await _initializeDefaultCategories();
       } else {
-        _categories = list;
+        _categories = List<CategoryEntity>.from(list);
       }
       notifyListeners();
     } catch (e) {

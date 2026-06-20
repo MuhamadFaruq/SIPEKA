@@ -1,9 +1,8 @@
-// lib/features/budget/presentation/screens/budget_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 import 'package:sipeka/features/budget/presentation/controllers/budget_provider.dart';
 import 'package:sipeka/features/transaction/presentation/controllers/transaction_provider.dart';
 import 'package:sipeka/features/budget/domain/entities/budget_entity.dart';
@@ -275,7 +274,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
         return StatefulBuilder(
           builder: (context, setModalState) {
             
-            void saveProcess() {
+            void saveProcess() async {
               final name = nameController.text.trim();
               final limitStr = limitController.text.replaceAll('.', '');
               final limit = double.tryParse(limitStr) ?? 0;
@@ -285,31 +284,50 @@ class _BudgetScreenState extends State<BudgetScreen> {
                 return;
               }
 
+              // Tampilkan loading dialog
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (loadCtx) => const Center(child: CircularProgressIndicator()),
+              );
+
               final budgetProvider = Provider.of<BudgetProvider>(mainContext, listen: false);
 
-              if (isEditing) {
-                budgetProvider.updateBudget(budget.id, name, limit, selectedIconCode);
-              } else {
-                budgetProvider.addBudget(
-                  Budget(
-                    id: DateTime.now().toString(),
-                    category: name,
-                    limit: limit,
-                    iconCode: selectedIconCode,
-                  ),
-                );
-              }
-              
-              Navigator.pop(ctx); 
-              
-              Future.delayed(Duration.zero, () {
+              try {
+                if (isEditing) {
+                  await budgetProvider.updateBudget(budget.id, name, limit, selectedIconCode);
+                } else {
+                  await budgetProvider.addBudget(
+                    Budget(
+                      id: const Uuid().v4(),
+                      category: name,
+                      limit: limit,
+                      iconCode: selectedIconCode,
+                    ),
+                  );
+                }
+                
+                // Tutup loading dialog
+                if (ctx.mounted) Navigator.pop(ctx); 
+                // Tutup bottom sheet
+                if (ctx.mounted) Navigator.pop(ctx); 
+                
                 if (mainContext.mounted) {
                   SipekaNotification.showSuccess(
                     mainContext, 
                     isEditing ? "Anggaran diperbarui!" : "Anggaran baru ditambahkan!"
                   );
                 }
-              });
+              } catch (e) {
+                // Tutup loading dialog jika error
+                if (ctx.mounted) Navigator.pop(ctx); 
+                if (mainContext.mounted) {
+                  SipekaNotification.showWarning(
+                    mainContext, 
+                    "Gagal menyimpan anggaran: $e"
+                  );
+                }
+              }
             }
 
             return Padding(

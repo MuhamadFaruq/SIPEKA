@@ -83,14 +83,27 @@ class _WishlistScreenState extends State<WishlistScreen> {
                     child: Container(
                       decoration: BoxDecoration(gradient: LinearGradient(colors: [startBlue, endBlue]), borderRadius: BorderRadius.circular(12)),
                       child: ElevatedButton(
-                        onPressed: () {
+                        onPressed: () async {
                           String cleanValue = nominalController.text.replaceAll('.', '');
                           double nominal = double.tryParse(cleanValue) ?? 0;
 
                           if (nominal > 0) {
-                            wishlistProvider.addSavings(item.id, nominal);
-                            Navigator.pop(ctx);
-                            SipekaNotification.showSuccess(context, "Berhasil menabung ${formatRupiah(nominal)}!");
+                            // Tampilkan loading dialog
+                            showDialog(
+                              context: context,
+                              barrierDismissible: false,
+                              builder: (ctx) => const Center(child: CircularProgressIndicator()),
+                            );
+
+                            try {
+                              await wishlistProvider.addSavings(item.id, nominal);
+                              if (context.mounted) Navigator.pop(context); // Tutup loading
+                              Navigator.pop(ctx); // Tutup bottom sheet
+                              if (context.mounted) SipekaNotification.showSuccess(context, "Berhasil menabung ${formatRupiah(nominal)}!");
+                            } catch (e) {
+                              if (context.mounted) Navigator.pop(context); // Tutup loading
+                              if (context.mounted) SipekaNotification.showWarning(context, "Gagal menyimpan tabungan: $e");
+                            }
                           }
                         },
                         style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, padding: const EdgeInsets.symmetric(vertical: 15)),
@@ -166,19 +179,32 @@ class _WishlistScreenState extends State<WishlistScreen> {
                     child: Container(
                       decoration: BoxDecoration(gradient: LinearGradient(colors: [startBlue, endBlue]), borderRadius: BorderRadius.circular(12)),
                       child: ElevatedButton(
-                        onPressed: () {
+                        onPressed: () async {
                           String cleanValue = targetController.text.replaceAll('.', '');
                           double target = double.tryParse(cleanValue) ?? 0;
 
                           if (titleController.text.isNotEmpty && target > 0) {
-                            wishlistProvider.addWishlist(WishlistItem(
-                              id: '', 
-                              title: titleController.text,
-                              targetAmount: target,
-                              savedAmount: 0.0,
-                            ));
-                            Navigator.pop(ctx);
-                            SipekaNotification.showSuccess(context, "Impian baru ditambahkan!");
+                            // Tampilkan loading dialog
+                            showDialog(
+                              context: context,
+                              barrierDismissible: false,
+                              builder: (ctx) => const Center(child: CircularProgressIndicator()),
+                            );
+
+                            try {
+                              await wishlistProvider.addWishlist(WishlistItem(
+                                id: '', 
+                                title: titleController.text,
+                                targetAmount: target,
+                                savedAmount: 0.0,
+                              ));
+                              if (context.mounted) Navigator.pop(context); // Tutup loading
+                              Navigator.pop(ctx); // Tutup bottom sheet
+                              if (context.mounted) SipekaNotification.showSuccess(context, "Impian baru ditambahkan!");
+                            } catch (e) {
+                              if (context.mounted) Navigator.pop(context); // Tutup loading
+                              if (context.mounted) SipekaNotification.showWarning(context, "Gagal menambahkan impian: $e");
+                            }
                           }
                         },
                         style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, padding: const EdgeInsets.symmetric(vertical: 15)),

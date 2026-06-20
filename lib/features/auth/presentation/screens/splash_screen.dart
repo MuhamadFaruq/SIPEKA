@@ -3,7 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'dart:async'; 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sipeka/features/auth/presentation/screens/onboarding_screen.dart';
-import 'package:sipeka/features/auth/presentation/screens/pre_login_screen.dart';
+import 'package:sipeka/features/auth/presentation/screens/pin_screen.dart';
+import 'package:sipeka/features/dashboard/presentation/screens/main_navigation.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -33,10 +34,13 @@ class _SplashScreenState extends State<SplashScreen> {
         MaterialPageRoute(builder: (context) => const OnboardingScreen()),
       );
     } else {
+      final bool isSecurityActive = prefs.getBool('is_security_enabled') ?? false;
+      Widget targetScreen = isSecurityActive ? const PinScreen() : const MainNavigation();
+      
       Navigator.pushReplacement(
         context,
         PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) => const PreLoginScreen(),
+          pageBuilder: (context, animation, secondaryAnimation) => targetScreen,
           transitionsBuilder: (context, animation, secondaryAnimation, child) => 
               FadeTransition(opacity: animation, child: child),
         ),

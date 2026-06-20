@@ -64,7 +64,7 @@ class TransactionProvider with ChangeNotifier {
     notifyListeners();
     try {
       final dataList = await getTransactionsUseCase();
-      _transactions = dataList;
+      _transactions = List<TransactionEntity>.from(dataList);
       _updateSortedCache(); // Update cache setelah fetch
     } catch (e) {
       debugPrint("Error Fetching Data: $e");
@@ -85,16 +85,17 @@ class TransactionProvider with ChangeNotifier {
     try {
       final success = await addTransactionUseCase(tx);
       if (!success) {
-        // Rollback jika gagal
+        // Rollback jika DB mengembalikan false
+        debugPrint("PROVIDER: DB gagal simpan transaksi '${tx.title}' — rollback!");
         _transactions.remove(tx);
         _updateSortedCache();
         notifyListeners();
         return false;
       }
-      debugPrint("Berhasil simpan transaksi: ${tx.title}");
+      debugPrint("PROVIDER: Berhasil simpan transaksi: ${tx.title} (id=${tx.id})");
       return true;
     } catch (e) {
-      debugPrint("Gagal simpan transaksi: $e");
+      debugPrint("PROVIDER: Exception saat simpan transaksi '${tx.title}': $e");
       // Rollback jika gagal
       _transactions.remove(tx);
       _updateSortedCache();

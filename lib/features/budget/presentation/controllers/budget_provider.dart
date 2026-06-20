@@ -66,7 +66,7 @@ class BudgetProvider with ChangeNotifier {
     notifyListeners();
     try {
       final dataList = await getBudgetsUseCase();
-      _budgets = dataList;
+      _budgets = List<BudgetEntity>.from(dataList);
     } catch (e) {
       debugPrint("Error fetching budgets: $e");
     } finally {
@@ -85,8 +85,13 @@ class BudgetProvider with ChangeNotifier {
 
     try {
       await addBudgetUseCase(budget);
+      debugPrint("BUDGET_PROVIDER: Berhasil simpan anggaran '${budget.category}'");
     } catch (e) {
-      debugPrint("Error adding budget: $e");
+      // Rollback jika gagal
+      debugPrint("BUDGET_PROVIDER: ERROR simpan anggaran '${budget.category}': $e");
+      _budgets.removeWhere((b) => b.id == budget.id);
+      notifyListeners();
+      rethrow;
     }
   }
 
@@ -94,6 +99,7 @@ class BudgetProvider with ChangeNotifier {
     final index = _budgets.indexWhere((b) => b.id == id);
     if (index != -1) {
       double currentUsed = _budgets[index].usedAmount;
+      final oldBudget = _budgets[index];
 
       _budgets[index] = BudgetEntity(
         id: id, 
@@ -113,17 +119,29 @@ class BudgetProvider with ChangeNotifier {
         );
       } catch (e) {
         debugPrint("Error updating budget: $e");
+        // Rollback memory jika gagal
+        _budgets[index] = oldBudget;
+        notifyListeners();
+        rethrow;
       }
     }
   }
 
   Future<void> deleteBudget(String id) async {
-    _budgets.removeWhere((b) => b.id == id);
-    notifyListeners();
-    try {
-      await deleteBudgetUseCase(id);
-    } catch (e) {
-      debugPrint("Error deleting budget: $e");
+    final index = _budgets.indexWhere((b) => b.id == id);
+    if (index != -1) {
+      final oldBudget = _budgets[index];
+      _budgets.removeAt(index);
+      notifyListeners();
+      try {
+        await deleteBudgetUseCase(id);
+      } catch (e) {
+        debugPrint("Error deleting budget: $e");
+        // Rollback memory jika gagal
+        _budgets.insert(index, oldBudget);
+        notifyListeners();
+        rethrow;
+      }
     }
   }
 

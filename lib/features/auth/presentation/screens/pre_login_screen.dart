@@ -15,6 +15,7 @@ import 'package:image_cropper/image_cropper.dart';
 import 'package:flutter/services.dart';
 import 'package:sipeka/core/services/ocr_helper.dart';
 import 'package:sipeka/features/budget/presentation/controllers/budget_provider.dart';
+import 'package:sipeka/core/theme/app_theme.dart';
 
 class PreLoginScreen extends StatefulWidget {
   const PreLoginScreen({super.key});
@@ -104,36 +105,44 @@ class _PreLoginScreenState extends State<PreLoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 40),
-                      GestureDetector(
-                        onLongPress: () async {
+                      Listener(
+                        onPointerDown: (_) async {
                           setModalState(() {
                             _isListening = true;
                             _voiceText = "Mendengarkan...";
                           });
                           await _speech.listen(
                             onResult: (result) {
-                              setModalState(() => _voiceText = result.recognizedWords);
+                              setModalState(() {
+                                _voiceText = TransactionHelper.formatVoiceTextToRupiah(result.recognizedWords);
+                              });
                             },
                             localeId: "id_ID",
+                            listenMode: stt.ListenMode.confirmation,
+                            partialResults: true,
                           );
                         },
-                        onLongPressUp: () async {
+                        onPointerUp: (_) async {
                           setModalState(() => _isListening = false);
                           await _speech.stop();
 
-                          if (_voiceText != "Mendengarkan..." && _voiceText.isNotEmpty) {
-                            await Provider.of<BudgetProvider>(context, listen: false).fetchAndSetBudgets();
+                          if (screenContext.mounted) {
+                            await Provider.of<BudgetProvider>(screenContext, listen: false).fetchAndSetBudgets();
+                          }
 
-                            Future.delayed(const Duration(milliseconds: 500), () {
-                              if (mounted) {
+                          Future.delayed(const Duration(milliseconds: 650), () {
+                            if (_voiceText != "Mendengarkan..." && 
+                                _voiceText.isNotEmpty && 
+                                _voiceText != "Tekan & tahan tombol mic untuk bicara...") {
+                              if (screenContext.mounted && Navigator.canPop(ctx)) {
                                 Navigator.pop(ctx);
                                 TransactionHelper.processVoiceData(
                                   context: screenContext,
                                   rawText: _voiceText,
                                 );
                               }
-                            });
-                          }
+                            }
+                          });
                         },
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 300),
@@ -162,6 +171,52 @@ class _PreLoginScreenState extends State<PreLoginScreen> {
                         _isListening ? "Lepas jika sudah selesai" : "Tahan tombol untuk bicara",
                         style: GoogleFonts.nunito(color: Colors.grey, fontSize: 13),
                       ),
+                      
+                      // --- TOMBOL PROSES MANUAL JIKA AUTO-POP TIDAK TERJADI/LAMBAT ---
+                      if (_voiceText.isNotEmpty &&
+                          _voiceText != "Tekan & tahan tombol mic untuk bicara..." &&
+                          _voiceText != "Mendengarkan..." &&
+                          !_isListening) ...[
+                        const SizedBox(height: 25),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                              elevation: 2,
+                            ),
+                            onPressed: () {
+                              if (Navigator.canPop(ctx)) {
+                                Navigator.pop(ctx);
+                                TransactionHelper.processVoiceData(
+                                  context: screenContext,
+                                  rawText: _voiceText,
+                                );
+                              }
+                            },
+                            child: Ink(
+                              decoration: BoxDecoration(
+                                gradient: AppColors.primaryGradient,
+                                borderRadius: const BorderRadius.all(Radius.circular(15)),
+                              ),
+                              child: Container(
+                                alignment: Alignment.center,
+                                child: Text(
+                                  "PROSES TRANSAKSI",
+                                  style: GoogleFonts.nunito(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 );
@@ -441,12 +496,17 @@ class _PreLoginScreenState extends State<PreLoginScreen> {
 
     if (croppedFile == null || !mounted) return;
 
+    BuildContext? dialogContext;
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => const Center(
-        child: CircularProgressIndicator(color: Color(0xFF007AFF)),
-      ),
+      builder: (ctx) {
+        dialogContext = ctx;
+        return const Center(
+          child: CircularProgressIndicator(color: Color(0xFF007AFF)),
+        );
+      },
     );
 
     try {
@@ -459,7 +519,9 @@ class _PreLoginScreenState extends State<PreLoginScreen> {
       
       final userCategories = budgetProvider.budgets.map((b) => b.category).toList();
 
-      if (mounted) Navigator.pop(context);
+      if (dialogContext != null && dialogContext!.mounted) {
+        Navigator.pop(dialogContext!);
+      }
 
       if (result != null && result > 0) {
         if (userCategories.isEmpty) {
@@ -489,7 +551,9 @@ class _PreLoginScreenState extends State<PreLoginScreen> {
         if (mounted) SipekaNotification.showWarning(context, "Gagal mendeteksi angka. Coba foto ulang.");
       }
     } catch (e) {
-      if (mounted) Navigator.pop(context);
+      if (dialogContext != null && dialogContext!.mounted) {
+        Navigator.pop(dialogContext!);
+      }
       debugPrint("Error OCR: $e");
     }
   }

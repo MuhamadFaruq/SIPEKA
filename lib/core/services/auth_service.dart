@@ -9,7 +9,9 @@ import 'package:sipeka/core/utils/security_helper.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    serverClientId: '184071946564-6s40uc9deh2c49s7m3iapm8c27uqvora.apps.googleusercontent.com',
+  );
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final LocalAuthentication _localAuth = LocalAuthentication();
   
@@ -66,7 +68,7 @@ class AuthService {
       return user;
     } catch (e) {
       debugPrint("Error Login Firebase: $e");
-      return null;
+      rethrow;
     }
   }
 

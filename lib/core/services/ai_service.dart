@@ -11,7 +11,7 @@ class AiService {
     try {
       final envKey = dotenv.env['GEMINI_API_KEY'];
       if (envKey != null && envKey.isNotEmpty) {
-        apiKey = envKey;
+        apiKey = envKey.trim();
       }
     } catch (e) {
       // Fallback safely if dotenv is not initialized
@@ -24,7 +24,40 @@ class AiService {
     );
   }
 
+  void validateApiKey() {
+    if (_apiKey.isEmpty) {
+      throw Exception('API Key Gemini tidak ditemukan. Harap tambahkan GEMINI_API_KEY ke file .env Anda.');
+    }
+  }
+
+  static String formatError(dynamic error) {
+    if (error == null) return "Gagal terhubung dengan AI Konsultan. Silakan coba beberapa saat lagi.";
+    
+    final errorStr = error.toString().toLowerCase();
+    
+    if (errorStr.contains('quota') || 
+        errorStr.contains('limit') || 
+        errorStr.contains('429')) {
+      return "Batas penggunaan konsultasi AI telah tercapai untuk saat ini. Silakan coba beberapa saat lagi.";
+    }
+    
+    if (errorStr.contains('timeout') || 
+        errorStr.contains('future not completed')) {
+      return "Koneksi terputus karena jaringan lambat atau kurang stabil. Silakan periksa internet Anda dan coba lagi.";
+    }
+    
+    if (errorStr.contains('api key') || 
+        errorStr.contains('key not found') || 
+        errorStr.contains('api_key') || 
+        errorStr.contains('invalid api key')) {
+      return "Layanan AI Konsultan sedang tidak tersedia untuk sementara waktu. Silakan coba beberapa saat lagi.";
+    }
+    
+    return "Gagal terhubung dengan AI Konsultan. Silakan periksa koneksi internet Anda atau coba beberapa saat lagi.";
+  }
+
   Future<Map<String, dynamic>?> parseVoiceToTransaction(String rawText, List<String> availableCategories) async {
+    validateApiKey();
     try {
       final prompt = '''
 Anda adalah AI Financial Assistant. Tugas Anda adalah mengekstrak data transaksi dari ucapan pengguna ke dalam format JSON.
@@ -59,11 +92,12 @@ Aturan:
       return null;
     } catch (e) {
       print('Error parsing voice with AI: $e');
-      return null;
+      rethrow;
     }
   }
 
   Future<String> getFinancialAdvice(String advicePromptContext) async {
+    validateApiKey();
     try {
       final prompt = '''
 Anda adalah AI Financial Advisor yang santai, solutif, dan suportif.
@@ -80,11 +114,12 @@ Gunakan bahasa Indonesia yang natural dan ramah.
       return response.text?.trim() ?? "Maaf, saya sedang tidak bisa memberikan nasihat saat ini. Tetap semangat mengatur keuangan!";
     } catch (e) {
       print('Error getting financial advice: $e');
-      return "Terjadi kesalahan saat menghubungi AI Advisor. Silakan coba lagi nanti.";
+      rethrow;
     }
   }
 
   ChatSession startFinancialChat(String contextData) {
+    validateApiKey();
     final chatModel = GenerativeModel(
       model: 'gemini-2.5-flash',
       apiKey: _apiKey,

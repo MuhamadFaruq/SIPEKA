@@ -61,7 +61,7 @@ class WishlistProvider with ChangeNotifier {
   Future<void> fetchAndSetWishlist() async {
     try {
       final dataList = await getWishlistUseCase();
-      _items = dataList;
+      _items = List<WishlistEntity>.from(dataList);
       notifyListeners();
     } catch (e) {
       debugPrint("Error fetching wishlist: $e");
@@ -71,16 +71,19 @@ class WishlistProvider with ChangeNotifier {
   Future<void> addWishlist(WishlistEntity item) async {
     try {
       await addWishlistUseCase(item);
-      await fetchAndSetWishlist();
+      debugPrint("WISHLIST_PROVIDER: Berhasil simpan wishlist '${item.title}'");
+      await fetchAndSetWishlist(); // Refresh untuk dapat ID yang diassign DB
     } catch (e) {
-      debugPrint("Error adding wishlist: $e");
+      debugPrint("WISHLIST_PROVIDER: ERROR simpan wishlist '${item.title}': $e");
+      rethrow;
     }
   }
 
   Future<void> addSavings(String id, double amount) async {
     final index = _items.indexWhere((item) => item.id == id);
     if (index != -1) {
-      double newAmount = _items[index].savedAmount + amount;
+      double oldAmount = _items[index].savedAmount;
+      double newAmount = oldAmount + amount;
       _items[index].savedAmount = newAmount;
       notifyListeners();
 
@@ -88,18 +91,30 @@ class WishlistProvider with ChangeNotifier {
         await addSavingsUseCase(id, amount);
       } catch (e) {
         debugPrint("Error adding savings: $e");
+        // Rollback memory jika gagal
+        _items[index].savedAmount = oldAmount;
+        notifyListeners();
+        rethrow;
       }
     }
   }
 
   Future<void> deleteWishlist(String id) async {
-    _items.removeWhere((item) => item.id == id);
-    notifyListeners();
+    final index = _items.indexWhere((item) => item.id == id);
+    if (index != -1) {
+      final oldItem = _items[index];
+      _items.removeAt(index);
+      notifyListeners();
 
-    try {
-      await deleteWishlistUseCase(id);
-    } catch (e) {
-      debugPrint("Error deleting wishlist: $e");
+      try {
+        await deleteWishlistUseCase(id);
+      } catch (e) {
+        debugPrint("Error deleting wishlist: $e");
+        // Rollback memory jika gagal
+        _items.insert(index, oldItem);
+        notifyListeners();
+        rethrow;
+      }
     }
   }
 

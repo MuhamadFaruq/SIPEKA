@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:sipeka/features/transaction/presentation/controllers/transaction_provider.dart';
 import 'package:sipeka/features/budget/presentation/controllers/budget_provider.dart'; 
 import 'package:sipeka/features/transaction/domain/entities/transaction_entity.dart';
+import 'package:sipeka/features/transaction/domain/entities/transaction_type.dart';
 import 'package:sipeka/features/budget/domain/entities/budget_entity.dart';
 
 class InsightScreen extends StatefulWidget {
@@ -44,7 +45,7 @@ class _InsightScreenState extends State<InsightScreen> {
     double totalIncome = 0;
     double totalExpense = 0;
     for (var t in monthTransactions) {
-      if (t.type == 'Pemasukan' || t.type == 'Income') {
+      if (t.type == TransactionType.income) {
         totalIncome += t.amount;
       } else {
         totalExpense += t.amount;
@@ -118,7 +119,7 @@ class _InsightScreenState extends State<InsightScreen> {
         : Column(
             children: budgets.map((budget) {
               double spentAmount = monthTransactions
-                  .where((tx) => tx.category == budget.category && (tx.type == 'Expense' || tx.type == 'Pengeluaran'))
+                  .where((tx) => tx.category == budget.category && tx.type == TransactionType.expense)
                   .fold(0, (sum, item) => sum + item.amount);
 
               return Column(
@@ -201,7 +202,7 @@ class _InsightScreenState extends State<InsightScreen> {
     if (transactions.isNotEmpty) {
       Map<String, int> categoryFreq = {};
       for (var tx in transactions) {
-        if (tx.type != 'Pemasukan' && tx.type != 'Income') {
+        if (tx.type != TransactionType.income) {
            categoryFreq[tx.category] = (categoryFreq[tx.category] ?? 0) + 1;
         }
       }
@@ -344,7 +345,7 @@ class _InsightScreenState extends State<InsightScreen> {
     List<double> monthlyExpense = List.filled(12, 0.0);
     for (var tx in transactions) {
       int monthIndex = tx.date.month - 1; 
-      if (tx.type == 'Pemasukan' || tx.type == 'Income') {
+      if (tx.type == TransactionType.income) {
         monthlyIncome[monthIndex] += tx.amount;
       } else {
         monthlyExpense[monthIndex] += tx.amount;

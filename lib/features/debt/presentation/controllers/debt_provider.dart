@@ -76,7 +76,7 @@ class DebtProvider with ChangeNotifier {
   Future<void> fetchAndSetDebts() async {
     try {
       final dataList = await getDebtsUseCase();
-      _debts = dataList;
+      _debts = List<DebtEntity>.from(dataList);
       notifyListeners();
     } catch (e) {
       debugPrint("Error fetching debts: $e");
@@ -89,8 +89,12 @@ class DebtProvider with ChangeNotifier {
 
     try {
       await addDebtUseCase(debt);
+      debugPrint("DEBT_PROVIDER: Berhasil simpan hutang '${debt.name}'");
     } catch (e) {
-      debugPrint("Error adding debt: $e");
+      debugPrint("DEBT_PROVIDER: ERROR simpan hutang '${debt.name}': $e");
+      _debts.removeWhere((d) => d.id == debt.id);
+      notifyListeners();
+      rethrow;
     }
   }
 
@@ -98,6 +102,9 @@ class DebtProvider with ChangeNotifier {
     final index = _debts.indexWhere((d) => d.id == id);
     if (index != -1) {
       DateTime now = DateTime.now();
+      final oldIsPaid = _debts[index].isPaid;
+      final oldPaidDate = _debts[index].paidDate;
+
       _debts[index].isPaid = true;
       _debts[index].paidDate = now;
       notifyListeners();
@@ -106,6 +113,11 @@ class DebtProvider with ChangeNotifier {
         await markDebtPaidUseCase(id, now);
       } catch (e) {
         debugPrint("Error marking debt as paid: $e");
+        // Rollback memory jika gagal
+        _debts[index].isPaid = oldIsPaid;
+        _debts[index].paidDate = oldPaidDate;
+        notifyListeners();
+        rethrow;
       }
     }
   }
@@ -113,6 +125,8 @@ class DebtProvider with ChangeNotifier {
   Future<void> updateDebt(String id, String name, double amount, String notes) async {
     final index = _debts.indexWhere((d) => d.id == id);
     if (index != -1) {
+      final oldDebt = _debts[index];
+
       _debts[index] = DebtEntity(
         id: id,
         name: name,
@@ -134,17 +148,29 @@ class DebtProvider with ChangeNotifier {
         );
       } catch (e) {
         debugPrint("Error updating debt: $e");
+        // Rollback memory jika gagal
+        _debts[index] = oldDebt;
+        notifyListeners();
+        rethrow;
       }
     }
   }
 
   Future<void> deleteDebt(String id) async {
-    _debts.removeWhere((d) => d.id == id);
-    notifyListeners();
-    try {
-      await deleteDebtUseCase(id);
-    } catch (e) {
-      debugPrint("Error deleting debt: $e");
+    final index = _debts.indexWhere((d) => d.id == id);
+    if (index != -1) {
+      final oldDebt = _debts[index];
+      _debts.removeAt(index);
+      notifyListeners();
+      try {
+        await deleteDebtUseCase(id);
+      } catch (e) {
+        debugPrint("Error deleting debt: $e");
+        // Rollback memory jika gagal
+        _debts.insert(index, oldDebt);
+        notifyListeners();
+        rethrow;
+      }
     }
   }
 

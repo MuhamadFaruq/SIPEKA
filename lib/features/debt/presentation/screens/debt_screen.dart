@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 import 'package:sipeka/features/debt/presentation/controllers/debt_provider.dart';
 import 'package:sipeka/features/debt/domain/entities/debt_entity.dart';
 import 'package:sipeka/core/services/notifications.dart';
 import 'package:sipeka/features/debt/presentation/screens/debt_history_screen.dart';
+import 'package:sipeka/core/theme/app_theme.dart';
 
 class DebtScreen extends StatefulWidget {
   const DebtScreen({super.key});
@@ -61,7 +63,7 @@ class _DebtScreenState extends State<DebtScreen> {
                     )
                   ),
                   GestureDetector(
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const DebtHistoryScreen())),
+                    onTap: () => Navigator.push(context, SmoothPageRoute(child: const DebtHistoryScreen())),
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
@@ -344,26 +346,40 @@ class _DebtScreenState extends State<DebtScreen> {
         decoration: BoxDecoration(gradient: LinearGradient(colors: [startBlue, endBlue]), borderRadius: BorderRadius.circular(15)),
         child: ElevatedButton(
           style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent),
-          onPressed: () {
+          onPressed: () async {
             if (nameC.text.isNotEmpty && amountC.text.isNotEmpty) {
+              // Tampilkan loading dialog
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (ctx) => const Center(child: CircularProgressIndicator()),
+              );
+
               final provider = Provider.of<DebtProvider>(context, listen: false);
               double cleanAmount = double.parse(amountC.text.replaceAll('.', ''));
 
-              if (isEdit) {
-                provider.updateDebt(debt!.id, nameC.text, cleanAmount, notesC.text);
-                Navigator.pop(context);
-                SipekaNotification.showSuccess(context, "Berhasil diperbarui!");
-              } else {
-                provider.addDebt(Debt(
-                  id: DateTime.now().toString(),
-                  name: nameC.text,
-                  amount: cleanAmount,
-                  date: DateTime.now(),
-                  type: _isHutangMode ? 'Borrowed' : 'Lent',
-                  notes: notesC.text,
-                ));
-                Navigator.pop(context);
-                SipekaNotification.showSuccess(context, "Catatan berhasil disimpan!");
+              try {
+                if (isEdit) {
+                  await provider.updateDebt(debt!.id, nameC.text, cleanAmount, notesC.text);
+                  if (context.mounted) Navigator.pop(context); // Tutup loading dialog
+                  if (context.mounted) Navigator.pop(context); // Tutup form/sheet
+                  if (context.mounted) SipekaNotification.showSuccess(context, "Berhasil diperbarui!");
+                } else {
+                  await provider.addDebt(Debt(
+                    id: const Uuid().v4(),
+                    name: nameC.text,
+                    amount: cleanAmount,
+                    date: DateTime.now(),
+                    type: _isHutangMode ? 'Borrowed' : 'Lent',
+                    notes: notesC.text,
+                  ));
+                  if (context.mounted) Navigator.pop(context); // Tutup loading dialog
+                  if (context.mounted) Navigator.pop(context); // Tutup form/sheet
+                  if (context.mounted) SipekaNotification.showSuccess(context, "Catatan berhasil disimpan!");
+                }
+              } catch (e) {
+                if (context.mounted) Navigator.pop(context); // Tutup loading dialog
+                if (context.mounted) SipekaNotification.showWarning(context, "Gagal menyimpan: $e");
               }
             } else {
               SipekaNotification.showWarning(context, "Mohon isi semua data!");

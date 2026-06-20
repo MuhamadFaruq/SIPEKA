@@ -18,7 +18,7 @@ class QuickActionProvider with ChangeNotifier {
   Future<void> loadActions() async {
     try {
       final list = await repository.getQuickActions();
-      _actions = list;
+      _actions = List<QuickActionEntity>.from(list);
       notifyListeners();
     } catch (e) {
       debugPrint('Error loading quick actions: $e');

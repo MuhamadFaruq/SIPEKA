@@ -1,33 +1,41 @@
 {
   "project_info": {
-    "project_number": "857519225400",
-    "project_id": "sipeka-2d426",
-    "storage_bucket": "sipeka-2d426.firebasestorage.app"
+    "project_number": "184071946564",
+    "project_id": "sipeka-8c37a",
+    "storage_bucket": "sipeka-8c37a.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:857519225400:android:63ccf6191e16b5507844cd",
+        "mobilesdk_app_id": "1:184071946564:android:4edb8c65f792eed40fd711",
         "android_client_info": {
           "package_name": "com.example.sipeka"
         }
       },
       "oauth_client": [
         {
-          "client_id": "857519225400-k6kla90c5re7aj5aeooght8ag1bqqjt2.apps.googleusercontent.com",
+          "client_id": "184071946564-tsaju5t4poaslodo0lc9d5u1eqc0dnj5.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.sipeka",
+            "certificate_hash": "0c1b4e0b7c9a2e941df1b8000921beedd893cb10"
+          }
+        },
+        {
+          "client_id": "184071946564-6s40uc9deh2c49s7m3iapm8c27uqvora.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyCrgWh-blaPHY4xzxoknazn2etmfHJIaFw"
+          "current_key": "AIzaSyCw0uvnKdQ3NRBjBTO8xIKF0a9as8grySc"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "857519225400-k6kla90c5re7aj5aeooght8ag1bqqjt2.apps.googleusercontent.com",
+              "client_id": "184071946564-6s40uc9deh2c49s7m3iapm8c27uqvora.apps.googleusercontent.com",
               "client_type": 3
             }
           ]

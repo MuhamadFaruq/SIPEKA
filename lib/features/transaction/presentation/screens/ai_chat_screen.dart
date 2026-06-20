@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:sipeka/core/services/ai_service.dart';
+import 'package:sipeka/core/services/local_kb_service.dart';
 import 'package:sipeka/core/theme/theme_provider.dart';
 import 'package:sipeka/features/transaction/presentation/controllers/transaction_provider.dart';
 import 'package:sipeka/features/budget/presentation/controllers/budget_provider.dart';
 import 'package:sipeka/features/transaction/domain/entities/transaction_type.dart';
 import 'package:sipeka/core/theme/app_theme.dart';
+import 'package:sipeka/core/database/database_helper.dart';
+import 'package:sipeka/core/services/notifications.dart';
 
 class ChatMessage {
   final String text;
@@ -20,6 +24,22 @@ class ChatMessage {
     required this.isUser,
     required this.timestamp,
   });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'text': text,
+      'is_user': isUser ? 1 : 0,
+      'timestamp': timestamp.toIso8601String(),
+    };
+  }
+
+  factory ChatMessage.fromMap(Map<String, dynamic> map) {
+    return ChatMessage(
+      text: map['text'] as String,
+      isUser: map['is_user'] == 1,
+      timestamp: DateTime.parse(map['timestamp'] as String),
+    );
+  }
 }
 
 class AiChatScreen extends StatefulWidget {
@@ -36,19 +56,42 @@ class _AiChatScreenState extends State<AiChatScreen> {
   
   late final AiService _aiService;
   ChatSession? _chatSession;
+  String? _initError;
   bool _isLoading = false;
   bool _isInit = false;
+  bool _isLoadingHistory = true;
 
   @override
   void initState() {
     super.initState();
     _aiService = AiService();
-    // Add default initial welcome message
-    _messages.add(ChatMessage(
-      text: "Halo! Saya SIPEKA AI, konsultan keuangan pribadi Anda. Saya sudah membaca ringkasan data keuangan Anda bulan ini. Ada yang bisa saya bantu atau analisis hari ini?",
-      isUser: false,
-      timestamp: DateTime.now(),
-    ));
+    _loadChatHistory();
+  }
+
+  Future<void> _loadChatHistory() async {
+    try {
+      final dbMsgs = await DatabaseHelper.instance.getAllChatMessages();
+      setState(() {
+        _messages.clear();
+        if (dbMsgs.isEmpty) {
+          // Tambahkan pesan sambutan default jika belum ada riwayat
+          _messages.add(ChatMessage(
+            text: "Halo! Saya SIPEKA AI, konsultan keuangan pribadi Anda. Saya sudah membaca ringkasan data keuangan Anda bulan ini. Ada yang bisa saya bantu atau analisis hari ini?",
+            isUser: false,
+            timestamp: DateTime.now(),
+          ));
+        } else {
+          _messages.addAll(dbMsgs.map((m) => ChatMessage.fromMap(m)));
+        }
+        _isLoadingHistory = false;
+      });
+      _scrollToBottom();
+    } catch (e) {
+      debugPrint("Error loading chat history: $e");
+      setState(() {
+        _isLoadingHistory = false;
+      });
+    }
   }
 
   @override
@@ -64,8 +107,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
     final contextData = _buildContextData(context);
     try {
       _chatSession = _aiService.startFinancialChat(contextData);
+      _initError = null;
     } catch (e) {
       debugPrint("Gagal menginisialisasi Chat Session AI: $e");
+      _initError = e.toString();
     }
   }
 
@@ -133,12 +178,51 @@ ${budgetStr.isEmpty ? 'Belum ada anggaran kategori.' : budgetStr}
     if (text.isEmpty) return;
 
     _messageController.clear();
+    final userMsg = ChatMessage(
+      text: text,
+      isUser: true,
+      timestamp: DateTime.now(),
+    );
+
     setState(() {
-      _messages.add(ChatMessage(
-        text: text,
-        isUser: true,
+      _messages.add(userMsg);
+    });
+    _scrollToBottom();
+
+    // Simpan pesan user ke database
+    try {
+      await DatabaseHelper.instance.insertChatMessage(userMsg.toMap());
+    } catch (e) {
+      debugPrint("Gagal menyimpan pesan user ke DB: $e");
+    }
+
+    final isFinance = LocalKbService().isFinanceRelated(text);
+
+    if (!isFinance) {
+      // Pertanyaan non-keuangan langsung dijawab secara lokal tanpa API Gemini
+      const reply = "Maaf, sebagai SIPEKA AI Konsultan Keuangan, saya hanya dirancang khusus untuk membantu Anda dalam mengelola keuangan pribadi (seperti anggaran, transaksi, wishlist, hutang piutang, dan tips finansial). Silakan tanyakan hal yang berkaitan dengan keuangan!";
+      
+      final aiMsg = ChatMessage(
+        text: reply,
+        isUser: false,
         timestamp: DateTime.now(),
-      ));
+      );
+
+      setState(() {
+        _messages.add(aiMsg);
+      });
+      _scrollToBottom();
+
+      try {
+        await DatabaseHelper.instance.insertChatMessage(aiMsg.toMap());
+      } catch (e) {
+        debugPrint("Gagal menyimpan pesan AI ke DB: $e");
+      }
+      return;
+    }
+
+    // Jika terkait keuangan, kirim ke Gemini API dengan RAG
+    setState(() {
       _isLoading = true;
     });
     _scrollToBottom();
@@ -146,25 +230,95 @@ ${budgetStr.isEmpty ? 'Belum ada anggaran kategori.' : budgetStr}
     String reply = "";
     if (_chatSession != null) {
       try {
-        final response = await _chatSession!.sendMessage(Content.text(text)).timeout(const Duration(seconds: 15));
+        final matchedArticles = LocalKbService().retrieveContext(text);
+        String enrichedPrompt = text;
+        if (matchedArticles.isNotEmpty) {
+          final contextString = matchedArticles.map((a) => "- ${a.title}: ${a.content}").join("\n");
+          enrichedPrompt = "$text\n\n[INFORMASI REFERENSI LOKAL SIPEKA]\n$contextString\n[Gunakan informasi referensi di atas untuk memberikan jawaban yang akurat jika relevan dengan pertanyaan user]";
+        }
+
+        final response = await _chatSession!.sendMessage(Content.text(enrichedPrompt)).timeout(const Duration(seconds: 15));
         reply = response.text?.trim() ?? "Maaf, saya tidak memahami pesan Anda.";
       } catch (e) {
         debugPrint("Chat AI Error: $e");
-        reply = "Koneksi ke AI terputus. Pastikan kunci API Gemini Anda sudah terpasang dengan benar di file `.env`.";
+        reply = AiService.formatError(e);
       }
     } else {
-      reply = "Gagal terhubung dengan asisten finansial AI. Coba restart aplikasi.";
+      reply = AiService.formatError(_initError);
     }
 
+    final aiMsg = ChatMessage(
+      text: reply,
+      isUser: false,
+      timestamp: DateTime.now(),
+    );
+
     setState(() {
-      _messages.add(ChatMessage(
-        text: reply,
-        isUser: false,
-        timestamp: DateTime.now(),
-      ));
+      _messages.add(aiMsg);
       _isLoading = false;
     });
     _scrollToBottom();
+
+    // Simpan respons AI ke database
+    try {
+      await DatabaseHelper.instance.insertChatMessage(aiMsg.toMap());
+    } catch (e) {
+      debugPrint("Gagal menyimpan pesan AI ke DB: $e");
+    }
+  }
+
+  void _showClearChatConfirmation() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text("Bersihkan Chat?", style: GoogleFonts.nunito(
+          fontWeight: FontWeight.bold,
+          color: Theme.of(context).textTheme.bodyLarge?.color
+        )),
+        content: Text("Seluruh riwayat obrolan dengan AI Konsultan akan dihapus permanen.", style: TextStyle(
+          color: Theme.of(context).textTheme.bodyMedium?.color
+        )),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("BATAL", style: TextStyle(color: Colors.grey))
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () async {
+              Navigator.pop(ctx); // Tutup dialog
+              // Tampilkan loading dialog
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (loadCtx) => const Center(child: CircularProgressIndicator()),
+              );
+              try {
+                await DatabaseHelper.instance.clearChatMessagesTable();
+                if (mounted) Navigator.pop(context); // Tutup loading
+                setState(() {
+                  _messages.clear();
+                  // Masukkan kembali welcome message
+                  _messages.add(ChatMessage(
+                    text: "Halo! Saya SIPEKA AI, konsultan keuangan pribadi Anda. Saya sudah membaca ringkasan data keuangan Anda bulan ini. Ada yang bisa saya bantu atau analisis hari ini?",
+                    isUser: false,
+                    timestamp: DateTime.now(),
+                  ));
+                });
+                _scrollToBottom();
+                if (mounted) SipekaNotification.showSuccess(context, "Riwayat chat telah dibersihkan.");
+              } catch (e) {
+                if (mounted) Navigator.pop(context); // Tutup loading
+                if (mounted) SipekaNotification.showWarning(context, "Gagal membersihkan chat: $e");
+              }
+            },
+            child: const Text("HAPUS")
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -186,20 +340,29 @@ ${budgetStr.isEmpty ? 'Belum ada anggaran kategori.' : budgetStr}
         ),
         foregroundColor: Colors.white,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_sweep_rounded),
+            tooltip: "Bersihkan Chat",
+            onPressed: _showClearChatConfirmation,
+          ),
+        ],
       ),
       body: Column(
         children: [
-          // Message list
+          // Message list or Loading history
           Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                final message = _messages[index];
-                return _buildMessageBubble(message, isDark);
-              },
-            ),
+            child: _isLoadingHistory
+                ? const Center(child: CircularProgressIndicator())
+                : ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _messages.length,
+                    itemBuilder: (context, index) {
+                      final message = _messages[index];
+                      return _buildMessageBubble(message, isDark);
+                    },
+                  ),
           ),
           // Typing loader
           if (_isLoading)
@@ -265,42 +428,82 @@ ${budgetStr.isEmpty ? 'Belum ada anggaran kategori.' : budgetStr}
             const SizedBox(width: 8),
           ],
           Flexible(
-            child: Container(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.75,
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: message.isUser ? userBubbleColor : aiBubbleColor,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(16),
-                  topRight: const Radius.circular(16),
-                  bottomLeft: message.isUser ? const Radius.circular(16) : Radius.zero,
-                  bottomRight: message.isUser ? Radius.zero : const Radius.circular(16),
+            child: GestureDetector(
+              onLongPress: () {
+                Clipboard.setData(ClipboardData(text: message.text));
+                SipekaNotification.showSuccess(context, "Pesan disalin ke papan klip");
+              },
+              child: Container(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * 0.75,
                 ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    message.text,
-                    style: GoogleFonts.nunito(
-                      color: message.isUser ? userTextColor : aiTextColor,
-                      fontSize: 14,
-                    ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: message.isUser ? userBubbleColor : aiBubbleColor,
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(16),
+                    topRight: const Radius.circular(16),
+                    bottomLeft: message.isUser ? const Radius.circular(16) : Radius.zero,
+                    bottomRight: message.isUser ? Radius.zero : const Radius.circular(16),
                   ),
-                  const SizedBox(height: 4),
-                  Align(
-                    alignment: Alignment.bottomRight,
-                    child: Text(
-                      DateFormat('HH:mm').format(message.timestamp),
-                      style: TextStyle(
-                        fontSize: 9,
-                        color: message.isUser ? Colors.white70 : Colors.grey,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    MarkdownRichText(
+                      text: message.text,
+                      style: GoogleFonts.nunito(
+                        color: message.isUser ? userTextColor : aiTextColor,
+                        fontSize: 14,
+                      ),
+                      boldStyle: GoogleFonts.nunito(
+                        color: message.isUser ? userTextColor : aiTextColor,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        GestureDetector(
+                          onTap: () {
+                            Clipboard.setData(ClipboardData(text: message.text));
+                            SipekaNotification.showSuccess(context, "Pesan disalin");
+                          },
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.copy_rounded,
+                                  size: 11,
+                                  color: message.isUser ? Colors.white70 : Colors.grey,
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  "Salin",
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: message.isUser ? Colors.white70 : Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Text(
+                          DateFormat('HH:mm').format(message.timestamp),
+                          style: TextStyle(
+                            fontSize: 9,
+                            color: message.isUser ? Colors.white70 : Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -374,6 +577,125 @@ ${budgetStr.isEmpty ? 'Belum ada anggaran kategori.' : budgetStr}
           ),
         ],
       ),
+    );
+  }
+}
+
+class MarkdownRichText extends StatelessWidget {
+  final String text;
+  final TextStyle style;
+  final TextStyle? boldStyle;
+
+  const MarkdownRichText({
+    super.key,
+    required this.text,
+    required this.style,
+    this.boldStyle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final List<String> lines = text.split('\n');
+    final List<Widget> children = [];
+
+    final actualBoldStyle = boldStyle ?? style.copyWith(fontWeight: FontWeight.bold);
+
+    for (var line in lines) {
+      if (line.trim().isEmpty) {
+        children.add(const SizedBox(height: 6));
+        continue;
+      }
+
+      bool isBullet = false;
+      int indentLevel = 0;
+      String cleanLine = line;
+
+      // Detect indentation for nested bullets
+      final trimmedLeft = line.trimLeft();
+      final leadingSpaces = line.length - trimmedLeft.length;
+
+      // Check if it is a list bullet
+      if (trimmedLeft.startsWith('* ')) {
+        isBullet = true;
+        indentLevel = leadingSpaces;
+        cleanLine = trimmedLeft.substring(2);
+      } else if (trimmedLeft.startsWith('- ')) {
+        isBullet = true;
+        indentLevel = leadingSpaces;
+        cleanLine = trimmedLeft.substring(2);
+      }
+
+      // Detect headers (e.g., ### Title)
+      int headerLevel = 0;
+      if (cleanLine.startsWith('#')) {
+        int count = 0;
+        while (count < cleanLine.length && cleanLine[count] == '#') {
+          count++;
+        }
+        if (count < cleanLine.length && cleanLine[count] == ' ') {
+          headerLevel = count;
+          cleanLine = cleanLine.substring(count + 1);
+        }
+      }
+
+      // Parse bold parts: split by '**'
+      final parts = cleanLine.split('**');
+      final List<TextSpan> spans = [];
+
+      // Determine text styles based on header level
+      TextStyle normalStyle = style;
+      TextStyle customBoldStyle = actualBoldStyle;
+
+      if (headerLevel > 0) {
+        double factor = 1.0;
+        if (headerLevel == 1) factor = 1.4;
+        else if (headerLevel == 2) factor = 1.25;
+        else factor = 1.15;
+
+        normalStyle = style.copyWith(
+          fontSize: (style.fontSize ?? 14.0) * factor,
+          fontWeight: FontWeight.bold,
+        );
+        customBoldStyle = actualBoldStyle.copyWith(
+          fontSize: (style.fontSize ?? 14.0) * factor,
+          fontWeight: FontWeight.bold,
+        );
+      }
+
+      // If it is a bullet, prepend a bullet point character
+      if (isBullet) {
+        spans.add(TextSpan(text: '•  ', style: customBoldStyle));
+      }
+
+      for (int i = 0; i < parts.length; i++) {
+        if (i % 2 == 1) {
+          // Odd index is bold
+          spans.add(TextSpan(text: parts[i], style: customBoldStyle));
+        } else {
+          // Even index is normal
+          spans.add(TextSpan(text: parts[i], style: normalStyle));
+        }
+      }
+
+      children.add(
+        Padding(
+          padding: EdgeInsets.only(
+            bottom: 4,
+            left: isBullet ? (12.0 + indentLevel * 4.0) : 0, // Indent based on bullet/spaces
+          ),
+          child: RichText(
+            text: TextSpan(
+              children: spans,
+              style: normalStyle, // Default fallback
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: children,
     );
   }
 }

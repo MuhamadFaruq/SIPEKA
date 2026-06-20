@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:sipeka/features/transaction/presentation/controllers/transaction_provider.dart';
+import 'package:sipeka/features/transaction/domain/entities/transaction_type.dart';
 
 class TransactionPieChart extends StatelessWidget {
   const TransactionPieChart({super.key});
@@ -14,7 +15,7 @@ class TransactionPieChart extends StatelessWidget {
       builder: (context, provider, child) {
         // 1. Ambil data pengeluaran saja
         final expenses = provider.transactions
-            .where((tx) => tx.type == 'Pengeluaran' || tx.type == 'Expense')
+            .where((tx) => tx.type == TransactionType.expense)
             .toList();
 
         if (expenses.isEmpty) {

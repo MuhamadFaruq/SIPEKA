@@ -424,40 +424,62 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bool isFiltered = !value.startsWith("Semua");
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        color: isDark ? Colors.black26 : const Color(0xFFF2F2F7),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isFiltered ? const Color(0xFF007AFF) : Colors.transparent,
-          width: 1.5,
+    
+    return PopupMenuButton<String>(
+      initialValue: value,
+      tooltip: "Pilih Filter",
+      offset: const Offset(0, 32), // Pushes the popup menu below the button
+      onSelected: (val) => onChanged(val),
+      color: Theme.of(context).cardColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      itemBuilder: (BuildContext context) {
+        return items.map((String item) {
+          return PopupMenuItem<String>(
+            value: item,
+            height: 38,
+            child: Text(
+              item,
+              style: GoogleFonts.nunito(
+                fontSize: 12,
+                color: item == value
+                    ? const Color(0xFF007AFF)
+                    : (isDark ? Colors.white70 : Colors.black87),
+                fontWeight: item == value ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          );
+        }).toList();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.black26 : const Color(0xFFF2F2F7),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isFiltered ? const Color(0xFF007AFF) : Colors.transparent,
+            width: 1.5,
+          ),
         ),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          isDense: true,
-          style: GoogleFonts.nunito(
-            color: isFiltered 
-                ? const Color(0xFF007AFF) 
-                : (isDark ? Colors.white70 : Colors.black87),
-            fontWeight: isFiltered ? FontWeight.bold : FontWeight.normal,
-            fontSize: 12,
-          ),
-          icon: Icon(
-            Icons.arrow_drop_down,
-            size: 18,
-            color: isFiltered ? const Color(0xFF007AFF) : Colors.grey,
-          ),
-          dropdownColor: Theme.of(context).cardColor,
-          items: items.map((String item) {
-            return DropdownMenuItem<String>(
-              value: item,
-              child: Text(item, style: GoogleFonts.nunito(fontSize: 12)),
-            );
-          }).toList(),
-          onChanged: onChanged,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              value,
+              style: GoogleFonts.nunito(
+                color: isFiltered 
+                    ? const Color(0xFF007AFF) 
+                    : (isDark ? Colors.white70 : Colors.black87),
+                fontWeight: isFiltered ? FontWeight.bold : FontWeight.normal,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.arrow_drop_down,
+              size: 18,
+              color: isFiltered ? const Color(0xFF007AFF) : Colors.grey,
+            ),
+          ],
         ),
       ),
     );

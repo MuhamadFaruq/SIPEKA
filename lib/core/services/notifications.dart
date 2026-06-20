@@ -5,24 +5,22 @@ import 'package:sipeka/main.dart';
 
 class SipekaNotification {
   static void showSuccess(BuildContext context, String message) {
-    _show(message, isSuccess: true);
+    _show(context, message, isSuccess: true);
   }
 
   static void showWarning(BuildContext context, String message) {
-    _show(message, isSuccess: false);
+    _show(context, message, isSuccess: false);
   }
 
-  // ✅ context parameter tidak dipakai lagi — selalu pakai navigatorKey
-  static void _show(String message, {required bool isSuccess}) {
-    // Ambil overlay langsung dari root navigator
-    final overlayState = navigatorKey.currentState?.overlay;
+  static void _show(BuildContext context, String message, {required bool isSuccess}) {
+    final activeContext = context.mounted ? context : navigatorKey.currentContext;
     
-    if (overlayState == null) {
-      debugPrint("DEBUG Notif: overlay null, notif dibatalkan");
+    if (activeContext == null) {
+      debugPrint("DEBUG Notif: activeContext null, notif dibatalkan");
       return;
     }
 
-    debugPrint("DEBUG Notif: overlay valid, menampilkan notif...");
+    debugPrint("DEBUG Notif: menampilkan notif...");
 
     final flushbar = Flushbar(
       messageText: Text(
@@ -53,7 +51,6 @@ class SipekaNotification {
       ],
     );
 
-    // ✅ Inject langsung ke overlay root — tidak perlu context screen sama sekali
-    flushbar.show(navigatorKey.currentContext!);
+    flushbar.show(activeContext);
   }
 }

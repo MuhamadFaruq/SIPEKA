@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 import 'package:sipeka/features/quick_action/presentation/controllers/quick_action_provider.dart';
 import 'package:sipeka/features/budget/presentation/controllers/budget_provider.dart';
 import 'package:sipeka/features/quick_action/domain/entities/quick_action_entity.dart';
@@ -217,7 +218,7 @@ class ManageShortcutsScreen extends StatelessWidget {
                             );
                           } else {
                             quickActionProvider.addAction(QuickAction(
-                              id: DateTime.now().toString(),
+                              id: const Uuid().v4(),
                               label: labelController.text,
                               category: selectedKategori!,
                               amount: amt,

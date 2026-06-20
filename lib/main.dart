@@ -17,6 +17,7 @@ import 'package:sipeka/core/theme/theme_provider.dart';
 import 'package:sipeka/features/auth/presentation/screens/splash_screen.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:sipeka/core/services/notification_service.dart';
+import 'package:sipeka/core/services/local_kb_service.dart';
 
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -45,6 +46,7 @@ void main() async {
   // 1. Inisialisasi data dasar
   await initializeDateFormatting('id_ID', null); 
   await NotificationService.init();
+  await LocalKbService.init();
 
   // --- TAMBAHKAN INI: Minta izin Notifikasi & Exact Alarm ---
   // Tanpa ini, scheduleReminder di bawah akan gagal di Android 13/14

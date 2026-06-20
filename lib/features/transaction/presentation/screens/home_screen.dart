@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:permission_handler/permission_handler.dart';
 
@@ -14,6 +15,7 @@ import 'package:sipeka/core/theme/theme_provider.dart';
 
 // Import Model & Utils
 import 'package:sipeka/features/transaction/domain/entities/transaction_entity.dart';
+import 'package:sipeka/features/transaction/domain/entities/transaction_type.dart';
 import 'package:sipeka/features/quick_action/domain/entities/quick_action_entity.dart';
 import 'package:sipeka/core/utils/formatters.dart'; 
 import 'package:sipeka/core/constants/constants.dart' hide AppColors;
@@ -100,8 +102,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                       const SizedBox(height: 40),
-                      GestureDetector(
-                        onLongPress: () async {
+                      Listener(
+                        onPointerDown: (_) async {
                           setModalState(() {
                             _isListening = true;
                             _voiceText = "Mendengarkan...";
@@ -109,24 +111,30 @@ class _HomeScreenState extends State<HomeScreen> {
                           
                           await _speech.listen(
                             onResult: (result) {
-                              setModalState(() => _voiceText = result.recognizedWords);
+                              setModalState(() {
+                                _voiceText = TransactionHelper.formatVoiceTextToRupiah(result.recognizedWords);
+                              });
                             },
                             localeId: "id_ID",
+                            listenMode: stt.ListenMode.confirmation,
+                            partialResults: true,
                           );
                         },
-                        onLongPressUp: () async {
+                        onPointerUp: (_) async {
                           setModalState(() => _isListening = false);
                           await _speech.stop();
                           
-                          if (_voiceText != "Mendengarkan..." && _voiceText.isNotEmpty) {
-                            Future.delayed(const Duration(milliseconds: 500), () {
-                              if (mounted) {
+                          Future.delayed(const Duration(milliseconds: 650), () {
+                            if (_voiceText != "Mendengarkan..." && 
+                                _voiceText.isNotEmpty && 
+                                _voiceText != "Tekan & tahan tombol mic untuk bicara...") {
+                              if (context.mounted && Navigator.canPop(ctx)) {
                                 Navigator.pop(ctx); 
                                 // Panggil Helper:
                                 TransactionHelper.processVoiceData(context: context, rawText: _voiceText);
                               }
-                            });
-                          }
+                            }
+                          });
                         },
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 300),
@@ -148,6 +156,49 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 15),
                       Text(_isListening ? "Lepas jika sudah selesai" : "Tahan tombol untuk bicara", 
                         style: GoogleFonts.nunito(color: Colors.grey, fontSize: 13)),
+                      
+                      // --- TOMBOL PROSES MANUAL JIKA AUTO-POP TIDAK TERJADI/LAMBAT ---
+                      if (_voiceText.isNotEmpty &&
+                          _voiceText != "Tekan & tahan tombol mic untuk bicara..." &&
+                          _voiceText != "Mendengarkan..." &&
+                          !_isListening) ...[
+                        const SizedBox(height: 25),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                              elevation: 2,
+                            ),
+                            onPressed: () {
+                              if (Navigator.canPop(ctx)) {
+                                Navigator.pop(ctx);
+                                TransactionHelper.processVoiceData(context: context, rawText: _voiceText);
+                              }
+                            },
+                            child: Ink(
+                              decoration: BoxDecoration(
+                                gradient: AppColors.primaryGradient,
+                                borderRadius: const BorderRadius.all(Radius.circular(15)),
+                              ),
+                              child: Container(
+                                alignment: Alignment.center,
+                                child: Text(
+                                  "PROSES TRANSAKSI",
+                                  style: GoogleFonts.nunito(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 );
@@ -263,7 +314,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             int iconCode = budgetProvider.budgets.firstWhere((b) => b.category == selectedKategori).iconCode;
                             
                             quickActionProvider.addAction(QuickAction(
-                              id: DateTime.now().toString(),
+                              id: const Uuid().v4(),
                               label: selectedKategori!,
                               category: selectedKategori!,
                               amount: amt,
@@ -360,11 +411,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 onVoicePressed: _showVoiceInputDialog,
                 onSettingsPressed: () => Navigator.push(
                   context, 
-                  MaterialPageRoute(builder: (context) => const SettingsScreen())
+                  SmoothPageRoute(child: const SettingsScreen())
                 ),
                 onAiChatPressed: () => Navigator.push(
                   context, 
-                  MaterialPageRoute(builder: (context) => const AiChatScreen())
+                  SmoothPageRoute(child: const AiChatScreen())
                 ),
               ),
             ),
@@ -460,7 +511,7 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Text("Transaksi Terbaru", style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.bold)),
               GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AllTransactionsScreen())),
+                onTap: () => Navigator.push(context, SmoothPageRoute(child: const AllTransactionsScreen())),
                 child: Text("Lihat Semua >", style: GoogleFonts.nunito(fontSize: 12, color: AppColors.primaryBlue)),
               ),
             ],
@@ -482,7 +533,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildTransactionItem(BuildContext context, Transaction tx) {
-    bool isExpense = tx.type == 'Expense' || tx.type == 'Pengeluaran';
+    bool isExpense = tx.type == TransactionType.expense;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -541,7 +592,7 @@ class _HomeScreenState extends State<HomeScreen> {
     double expense = 0;
     for (var tx in transactions) {
       if (tx.wallet == walletName) {
-        if (tx.type == 'Income' || tx.type == 'Pemasukan') {
+        if (tx.type == TransactionType.income) {
           income += tx.amount;
         } else {
           expense += tx.amount;
