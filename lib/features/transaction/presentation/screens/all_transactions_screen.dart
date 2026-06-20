@@ -11,6 +11,8 @@ import 'package:sipeka/features/transaction/domain/entities/transaction_entity.d
 import 'package:sipeka/features/transaction/domain/entities/transaction_type.dart';
 import 'package:sipeka/core/constants/constants.dart'; 
 import 'package:sipeka/core/services/notifications.dart'; 
+import 'package:sipeka/features/wallet/presentation/controllers/wallet_provider.dart';
+import 'package:sipeka/features/wallet/domain/entities/wallet_entity.dart'; 
 
 class AllTransactionsScreen extends StatefulWidget {
   const AllTransactionsScreen({super.key});
@@ -38,9 +40,19 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<TransactionProvider>(context);
+    final walletProvider = Provider.of<WalletProvider>(context);
+    final walletNames = walletProvider.wallets.map((w) => w.name).toList();
+    if (_selectedWallet != "Semua Sumber" && !walletNames.contains(_selectedWallet)) {
+      _selectedWallet = "Semua Sumber";
+    }
     
-    // Get all categories dynamically from transaction history
+    // Kategori disesuaikan dengan tipe yang dipilih
     final List<String> allCategories = provider.transactions
+        .where((tx) {
+          if (_selectedType == "Pemasukan") return tx.type == TransactionType.income;
+          if (_selectedType == "Pengeluaran") return tx.type == TransactionType.expense;
+          return true; // Semua Tipe
+        })
         .map((tx) => tx.category)
         .toSet()
         .toList();
@@ -128,6 +140,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
 
   Widget _buildSearchAndFilterBar(BuildContext context, List<String> allCategories) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final walletNames = Provider.of<WalletProvider>(context).wallets.map((w) => w.name).toList();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
       color: Theme.of(context).cardColor,
@@ -183,12 +196,16 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                 _buildFilterDropdown(
                   value: _selectedType,
                   items: ["Semua Tipe", "Pemasukan", "Pengeluaran"],
-                  onChanged: (val) => setState(() => _selectedType = val!),
+                  onChanged: (val) => setState(() {
+                    _selectedType = val!;
+                    // Reset kategori agar tidak ada kategori yang salah tipe
+                    _selectedCategory = "Semua Kategori";
+                  }),
                 ),
                 const SizedBox(width: 8),
                 _buildFilterDropdown(
                   value: _selectedWallet,
-                  items: ["Semua Sumber", "Dompet", "E-Wallet"],
+                  items: ["Semua Sumber", ...walletNames],
                   onChanged: (val) => setState(() => _selectedWallet = val!),
                 ),
                 const SizedBox(width: 8),
@@ -295,23 +312,39 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                 ),
               ),
               const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  // Oranye untuk Dompet, Biru untuk E-Wallet
-                  color: (tx.wallet == 'Dompet') 
-                      ? Colors.orange.withOpacity(0.1) 
-                      : Colors.blue.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  tx.wallet.toUpperCase(),
-                  style: GoogleFonts.nunito(
-                    fontSize: 8,
-                    fontWeight: FontWeight.w800,
-                    color: (tx.wallet == 'Dompet') ? Colors.orange : Colors.blue,
-                  ),
-                ),
+              Builder(
+                builder: (context) {
+                  final walletProv = Provider.of<WalletProvider>(context, listen: false);
+                  final wallet = walletProv.wallets.firstWhere(
+                    (w) => w.name.toLowerCase() == tx.wallet.toLowerCase(),
+                    orElse: () => const WalletEntity(id: '', name: '', initialBalance: 0, iconCode: 0, colorHex: '#9E9E9E'),
+                  );
+                  final walletColor = Color(int.parse(wallet.colorHex.replaceFirst('#', '0xFF')));
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: walletColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          tx.wallet.toUpperCase(),
+                          style: GoogleFonts.nunito(
+                            fontSize: 8,
+                            fontWeight: FontWeight.w800,
+                            color: walletColor,
+                          ),
+                        ),
+                        if (wallet.isShared) ...[
+                          const SizedBox(width: 3),
+                          Icon(Icons.cloud_done_rounded, size: 10, color: walletColor),
+                        ],
+                      ],
+                    ),
+                  );
+                }
               ),
             ],
           ),
@@ -412,6 +445,8 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
         return Colors.teal;
       case 'manual':
         return Colors.blueGrey;
+      case 'shared':
+        return Colors.blue;
       default:
         return Colors.grey;
     }
@@ -519,7 +554,12 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
       await file.writeAsString(csvData);
       
       if (context.mounted) {
-        await Share.shareXFiles([XFile(path)], text: 'Ekspor Riwayat Transaksi SIPEKA');
+        await SharePlus.instance.share(
+          ShareParams(
+            files: [XFile(path)],
+            text: 'Ekspor Riwayat Transaksi SIPEKA',
+          ),
+        );
       }
     } catch (e) {
       debugPrint("Gagal mengekspor CSV: $e");

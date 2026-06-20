@@ -3,9 +3,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:sipeka/core/database/database_helper.dart';
 import 'package:sipeka/core/services/ocr_helper.dart';
 import 'package:sipeka/core/services/sync_service.dart';
+import 'package:sipeka/core/services/widget_service.dart';
+import 'package:sipeka/core/services/shared_wallet_sync_service.dart';
 
 import '../../domain/entities/transaction_entity.dart';
 import '../../domain/entities/transaction_type.dart';
+import 'package:sipeka/features/wallet/domain/entities/wallet_entity.dart';
 import '../../domain/usecases/add_transaction.dart';
 import '../../domain/usecases/delete_transaction.dart';
 import '../../domain/usecases/get_transactions.dart';
@@ -56,6 +59,18 @@ class TransactionProvider with ChangeNotifier {
   // Panggil ini setiap kali _transactions berubah
   void _updateSortedCache() {
     _sortedTransactions = [..._transactions]..sort((a, b) => b.date.compareTo(a.date));
+    
+    // Perbarui widget saldo harian di HP secara asinkron
+    _updateWidget();
+  }
+
+  Future<void> _updateWidget() async {
+    try {
+      final balance = await calculateTotalBalanceFromDb();
+      WidgetService.updateWidgetData(balance);
+    } catch (e) {
+      debugPrint("Gagal update widget saldo: $e");
+    }
   }
 
   // --- FETCH DATA (LOKAL) ---
@@ -92,6 +107,22 @@ class TransactionProvider with ChangeNotifier {
         notifyListeners();
         return false;
       }
+      
+      // Sinkronisasi ke shared wallet jika tipenya shared
+      try {
+        final allWallets = await DatabaseHelper.instance.getAllWallets();
+        final targetWallet = allWallets.firstWhere(
+          (w) => (w['name'] as String).toLowerCase() == tx.wallet.toLowerCase(),
+          orElse: () => {},
+        );
+        if (targetWallet.isNotEmpty && (targetWallet['is_shared'] ?? 0) == 1) {
+          final walletId = targetWallet['id'] as String;
+          await SharedWalletSyncService.instance.addSharedTransaction(tx, walletId);
+        }
+      } catch (err) {
+        debugPrint("PROVIDER: Gagal simpan transaksi ke shared wallet cloud: $err");
+      }
+
       debugPrint("PROVIDER: Berhasil simpan transaksi: ${tx.title} (id=${tx.id})");
       return true;
     } catch (e) {
@@ -105,10 +136,29 @@ class TransactionProvider with ChangeNotifier {
   }
 
   Future<void> deleteTransaction(String id) async {
+    final txList = _transactions.where((t) => t.id == id).toList();
+    final tx = txList.isNotEmpty ? txList.first : null;
+
     // 1. Hapus dari memori & Lokal
     _transactions.removeWhere((tx) => tx.id == id);
     _updateSortedCache(); // Update cache
     notifyListeners();
+
+    if (tx != null) {
+      try {
+        final allWallets = await DatabaseHelper.instance.getAllWallets();
+        final targetWallet = allWallets.firstWhere(
+          (w) => (w['name'] as String).toLowerCase() == tx.wallet.toLowerCase(),
+          orElse: () => {},
+        );
+        if (targetWallet.isNotEmpty && (targetWallet['is_shared'] ?? 0) == 1) {
+          final walletId = targetWallet['id'] as String;
+          await SharedWalletSyncService.instance.deleteSharedTransaction(tx.id, walletId);
+        }
+      } catch (e) {
+        debugPrint("PROVIDER: Gagal hapus transaksi dari shared wallet cloud: $e");
+      }
+    }
 
     try {
       await deleteTransactionUseCase(id);
@@ -133,14 +183,41 @@ class TransactionProvider with ChangeNotifier {
   }
 
   // --- GETTER SALDO ---
-  double get dompetBalance => _calculateBalance('Dompet');
-  double get ewalletBalance => _calculateBalance('E-Wallet');
+  double get dompetBalance => getWalletBalance('Dompet');
+  double get ewalletBalance => getWalletBalance('E-Wallet');
 
-  double _calculateBalance(String walletType) {
-    var filtered = _transactions.where((tx) => tx.wallet == walletType);
-    double income = filtered.where((tx) => tx.type == TransactionType.income).fold(0, (sum, item) => sum + item.amount);
-    double expense = filtered.where((tx) => tx.type == TransactionType.expense).fold(0, (sum, item) => sum + item.amount);
+  double getWalletBalance(String walletName) {
+    final filtered = _transactions.where((tx) => tx.wallet.toLowerCase() == walletName.toLowerCase());
+    final double income = filtered
+        .where((tx) => tx.type == TransactionType.income)
+        .fold(0.0, (sum, item) => sum + item.amount);
+    final double expense = filtered
+        .where((tx) => tx.type == TransactionType.expense)
+        .fold(0.0, (sum, item) => sum + item.amount);
     return income - expense;
+  }
+
+  double getTotalBalance(List<WalletEntity> walletsList) {
+    double total = 0.0;
+    for (var w in walletsList) {
+      total += w.initialBalance + getWalletBalance(w.name);
+    }
+    return total;
+  }
+
+  Future<double> calculateTotalBalanceFromDb() async {
+    final walletsMap = await DatabaseHelper.instance.getAllWallets();
+    double initialSum = 0.0;
+    for (var w in walletsMap) {
+      initialSum += (w['initial_balance'] as num?)?.toDouble() ?? 0.0;
+    }
+    final double totalIncomes = _transactions
+        .where((tx) => tx.type == TransactionType.income)
+        .fold(0.0, (sum, item) => sum + item.amount);
+    final double totalExpenses = _transactions
+        .where((tx) => tx.type == TransactionType.expense)
+        .fold(0.0, (sum, item) => sum + item.amount);
+    return initialSum + totalIncomes - totalExpenses;
   }
 
   Future<void> clearAllData() async {

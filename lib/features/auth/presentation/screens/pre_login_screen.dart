@@ -15,6 +15,10 @@ import 'package:image_cropper/image_cropper.dart';
 import 'package:flutter/services.dart';
 import 'package:sipeka/core/services/ocr_helper.dart';
 import 'package:sipeka/features/budget/presentation/controllers/budget_provider.dart';
+import 'package:sipeka/features/wallet/presentation/controllers/wallet_provider.dart';
+import 'package:sipeka/features/wishlist/presentation/controllers/wishlist_provider.dart';
+import 'package:sipeka/features/debt/presentation/controllers/debt_provider.dart';
+import 'package:sipeka/features/bill/presentation/controllers/bill_provider.dart';
 import 'package:sipeka/core/theme/app_theme.dart';
 
 class PreLoginScreen extends StatefulWidget {
@@ -236,10 +240,11 @@ class _PreLoginScreenState extends State<PreLoginScreen> {
   void _showShortcutPicker(BuildContext context) {
     final actionProvider = Provider.of<QuickActionProvider>(context, listen: false);
     final screenContext = context;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: isDark ? Theme.of(context).cardColor : Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(25))
       ),
@@ -377,18 +382,26 @@ class _PreLoginScreenState extends State<PreLoginScreen> {
                     
                     final txProvider = Provider.of<TransactionProvider>(context, listen: false);
                     final bgProvider = Provider.of<BudgetProvider>(context, listen: false);
+                    final walletProvider = Provider.of<WalletProvider>(context, listen: false);
+                    final wishlistProvider = Provider.of<WishlistProvider>(context, listen: false);
+                    final debtProvider = Provider.of<DebtProvider>(context, listen: false);
+                    final billProvider = Provider.of<BillProvider>(context, listen: false);
 
                     await Future.wait([
                       txProvider.fetchAndSetTransactions(),
                       bgProvider.fetchAndSetBudgets(),
+                      walletProvider.fetchAndSetWallets(),
+                      wishlistProvider.fetchAndSetWishlist(),
+                      debtProvider.fetchAndSetDebts(),
+                      billProvider.fetchBills(),
                     ]);
 
                     if (!mounted) return;
-                    if (isSecurityActive) {
-                     await Navigator.push(context, MaterialPageRoute(builder: (context) => const PinScreen()));
-                    } else {
-                       Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const MainNavigation()));
-                    }
+                     if (isSecurityActive) {
+                      await Navigator.push(context, SmoothPageRoute(child: const PinScreen()));
+                     } else {
+                        Navigator.pushReplacement(context, SmoothPageRoute(child: const MainNavigation()));
+                     }
                   },
                   icon: const Icon(Icons.fingerprint),
                   label: Text(

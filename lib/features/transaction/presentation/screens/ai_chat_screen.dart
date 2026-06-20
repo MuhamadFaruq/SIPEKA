@@ -13,6 +13,7 @@ import 'package:sipeka/features/transaction/domain/entities/transaction_type.dar
 import 'package:sipeka/core/theme/app_theme.dart';
 import 'package:sipeka/core/database/database_helper.dart';
 import 'package:sipeka/core/services/notifications.dart';
+import 'package:sipeka/features/wallet/presentation/controllers/wallet_provider.dart';
 
 class ChatMessage {
   final String text;
@@ -117,8 +118,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
   String _buildContextData(BuildContext context) {
     final txProvider = Provider.of<TransactionProvider>(context, listen: false);
     final budgetProvider = Provider.of<BudgetProvider>(context, listen: false);
+    final walletProvider = Provider.of<WalletProvider>(context, listen: false);
     
-    final totalBalance = txProvider.dompetBalance + txProvider.ewalletBalance;
+    final wallets = walletProvider.wallets;
+    final totalBalance = txProvider.getTotalBalance(wallets);
     final now = DateTime.now();
     final monthTransactions = txProvider.transactions
         .where((t) => t.date.year == now.year && t.date.month == now.month)
@@ -144,12 +147,16 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
     final userName = Provider.of<ThemeProvider>(context, listen: false).userName;
 
+    String walletsStr = "";
+    for (var w in wallets) {
+      final bal = w.initialBalance + txProvider.getWalletBalance(w.name);
+      walletsStr += "- ${w.name}: Rp ${NumberFormat.decimalPattern('id').format(bal)}\n";
+    }
+
     return """
 Nama Pengguna: $userName
 Saldo Saat Ini:
-- Dompet: Rp ${NumberFormat.decimalPattern('id').format(txProvider.dompetBalance)}
-- E-Wallet: Rp ${NumberFormat.decimalPattern('id').format(txProvider.ewalletBalance)}
-- Total Saldo: Rp ${NumberFormat.decimalPattern('id').format(totalBalance)}
+$walletsStr- Total Saldo: Rp ${NumberFormat.decimalPattern('id').format(totalBalance)}
 
 Laporan Bulan Ini (${DateFormat('MMMM yyyy', 'id_ID').format(now)}):
 - Total Uang Masuk: Rp ${NumberFormat.decimalPattern('id').format(income)}
@@ -321,6 +328,66 @@ ${budgetStr.isEmpty ? 'Belum ada anggaran kategori.' : budgetStr}
     );
   }
 
+  Widget _buildErrorBanner() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isDark 
+              ? [const Color(0xFF2C1E1B), const Color(0xFF1F1513)]
+              : [const Color(0xFFFFF1F0), const Color(0xFFFFE5E3)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.redAccent.withOpacity(0.3),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.red.withOpacity(isDark ? 0.0 : 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          )
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  "AI Gemini API Key Belum Diatur",
+                  style: GoogleFonts.nunito(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: isDark ? Colors.white : Colors.red[900],
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  "Layanan konsultasi AI SIPEKA membutuhkan kunci API. Silakan tambahkan variabel GEMINI_API_KEY ke dalam file .env di folder root proyek Anda untuk mulai menggunakannya.",
+                  style: GoogleFonts.nunito(
+                    fontSize: 12,
+                    color: isDark ? Colors.white70 : Colors.red[800],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -350,6 +417,7 @@ ${budgetStr.isEmpty ? 'Belum ada anggaran kategori.' : budgetStr}
       ),
       body: Column(
         children: [
+          if (_initError != null) _buildErrorBanner(),
           // Message list or Loading history
           Expanded(
             child: _isLoadingHistory
@@ -524,6 +592,7 @@ ${budgetStr.isEmpty ? 'Belum ada anggaran kategori.' : budgetStr}
   }
 
   Widget _buildInputBar(bool isDark) {
+    final bool hasError = _initError != null;
     return Container(
       padding: const EdgeInsets.only(left: 16, right: 16, top: 12, bottom: 24),
       decoration: BoxDecoration(
@@ -542,17 +611,22 @@ ${budgetStr.isEmpty ? 'Belum ada anggaran kategori.' : budgetStr}
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               decoration: BoxDecoration(
-                color: isDark ? Colors.black26 : const Color(0xFFF2F2F7),
+                color: hasError
+                    ? (isDark ? Colors.white10 : Colors.grey[200])
+                    : (isDark ? Colors.black26 : const Color(0xFFF2F2F7)),
                 borderRadius: BorderRadius.circular(24),
               ),
               child: TextField(
                 controller: _messageController,
+                enabled: !hasError,
                 style: GoogleFonts.nunito(color: Theme.of(context).textTheme.bodyLarge?.color),
                 keyboardType: TextInputType.multiline,
                 minLines: 1,
                 maxLines: 5,
                 decoration: InputDecoration(
-                  hintText: "Tanya SIPEKA AI tentang keuangan...",
+                  hintText: hasError 
+                      ? "Fitur dinonaktifkan karena error API Key..."
+                      : "Tanya SIPEKA AI tentang keuangan...",
                   hintStyle: GoogleFonts.nunito(color: Colors.grey, fontSize: 13),
                   border: InputBorder.none,
                   isDense: true,
@@ -565,13 +639,14 @@ ${budgetStr.isEmpty ? 'Belum ada anggaran kategori.' : budgetStr}
           Padding(
             padding: const EdgeInsets.only(bottom: 2),
             child: Container(
-              decoration: const BoxDecoration(
-                gradient: AppColors.primaryGradient,
+              decoration: BoxDecoration(
+                gradient: hasError ? null : AppColors.primaryGradient,
+                color: hasError ? Colors.grey : null,
                 shape: BoxShape.circle,
               ),
               child: IconButton(
                 icon: const Icon(Icons.send_rounded, color: Colors.white),
-                onPressed: _sendMessage,
+                onPressed: hasError ? null : _sendMessage,
               ),
             ),
           ),

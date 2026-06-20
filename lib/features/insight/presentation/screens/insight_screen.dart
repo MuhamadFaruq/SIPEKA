@@ -8,6 +8,7 @@ import 'package:sipeka/features/budget/presentation/controllers/budget_provider.
 import 'package:sipeka/features/transaction/domain/entities/transaction_entity.dart';
 import 'package:sipeka/features/transaction/domain/entities/transaction_type.dart';
 import 'package:sipeka/features/budget/domain/entities/budget_entity.dart';
+import 'package:sipeka/features/insight/presentation/utils/pdf_helper.dart';
 
 class InsightScreen extends StatefulWidget {
   const InsightScreen({super.key});
@@ -68,6 +69,18 @@ class _InsightScreenState extends State<InsightScreen> {
         ),
         foregroundColor: Colors.white,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf_rounded),
+            tooltip: "Ekspor PDF Laporan Bulanan",
+            onPressed: () => PdfReportHelper.exportMonthlyReport(
+              context: context,
+              selectedDate: selectedDate,
+              transactions: allTransactions,
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),

@@ -16,15 +16,18 @@ import 'package:sipeka/core/services/notifications.dart';
 import 'package:sipeka/core/theme/theme_provider.dart';
 import 'package:sipeka/core/theme/app_theme.dart';
 import 'package:sipeka/widgets/custom_numpad.dart';
+import 'package:sipeka/features/wallet/presentation/controllers/wallet_provider.dart';
 
 class InputTransactionScreen extends StatefulWidget {
   final String? initialCategory;
   final String? initialAmount;
+  final bool startOcrScan;
 
   const InputTransactionScreen({
     super.key, 
     this.initialCategory, 
-    this.initialAmount
+    this.initialAmount,
+    this.startOcrScan = false,
   });
 
   @override
@@ -35,6 +38,7 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
   String _inputAmount = '0';
   String _type = 'Pengeluaran'; 
   String _selectedWallet = 'Dompet'; 
+  String _selectedTargetWallet = '';
   // --- MODIFIKASI 1: Set default ke null agar user dipaksa memilih ---
   String? _selectedCategory;
   DateTime _selectedDate = DateTime.now();
@@ -52,6 +56,24 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
     if (widget.initialAmount != null) {
       _inputAmount = widget.initialAmount!;
     }
+    if (widget.startOcrScan) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _processScan();
+      });
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final wallets = Provider.of<WalletProvider>(context, listen: false).wallets;
+      if (wallets.isNotEmpty && mounted) {
+        setState(() {
+          _selectedWallet = wallets.first.name;
+          if (wallets.length > 1) {
+            _selectedTargetWallet = wallets[1].name;
+          } else {
+            _selectedTargetWallet = wallets.first.name;
+          }
+        });
+      }
+    });
   }
 
   // --- FIX 4: Pastikan fungsi retrieve data dipanggil di initState ---
@@ -73,8 +95,21 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
     final budgetProvider = Provider.of<BudgetProvider>(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
-    double dompetBalance = _calculateBalance(provider.transactions, 'Dompet');
-    double eWalletBalance = _calculateBalance(provider.transactions, 'E-Wallet');
+    final wallets = Provider.of<WalletProvider>(context).wallets;
+
+    if (wallets.isNotEmpty) {
+      final walletNames = wallets.map((w) => w.name.toLowerCase()).toList();
+      if (!walletNames.contains(_selectedWallet.toLowerCase())) {
+        _selectedWallet = wallets.first.name;
+      }
+      if (_selectedTargetWallet.isEmpty || !walletNames.contains(_selectedTargetWallet.toLowerCase())) {
+        if (wallets.length > 1) {
+          _selectedTargetWallet = wallets[1].name;
+        } else {
+          _selectedTargetWallet = wallets.first.name;
+        }
+      }
+    }
 
     return Scaffold(
       // --- FIX: Background dinamis ---
@@ -111,22 +146,121 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
                 const SizedBox(height: 20),
                 _buildTypeSelector(context),
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    _buildWalletCard(context, "Dompet", dompetBalance, Icons.wallet, _selectedWallet == 'Dompet'),
-                    const SizedBox(width: 12),
-                    _buildWalletCard(context, "E-Wallet", eWalletBalance, Icons.credit_card, _selectedWallet == 'E-Wallet'),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Text(_type == 'Pengeluaran' ? "Kategori Pengeluaran" : "Sumber Pemasukan", 
-                    style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 14, color: isDark ? Colors.white70 : Colors.black54)),
-                const SizedBox(height: 8),
                 
-                if (_type == 'Pengeluaran' && budgetProvider.budgets.isEmpty)
-                  _buildEmptyBudgetWarning()
-                else
-                  _buildDynamicCategories(context),
+                if (_type == 'Transfer') ...[
+                  if (wallets.length < 2)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                      ),
+                      child: Column(
+                        children: [
+                          const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+                          const SizedBox(height: 8),
+                          Text(
+                            "Kamu butuh minimal 2 dompet untuk melakukan transfer saldo. Tambah dompet baru di menu Pengaturan.",
+                            style: GoogleFonts.nunito(color: Colors.orange, fontSize: 13, fontWeight: FontWeight.w600),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    )
+                  else ...[
+                    Text("Dari Dompet (Sumber)", 
+                        style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 14, color: isDark ? Colors.white70 : Colors.black54)),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 52,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: wallets.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 10),
+                        itemBuilder: (context, index) {
+                          final wallet = wallets[index];
+                          final balance = wallet.initialBalance + _calculateBalance(provider.transactions, wallet.name);
+                          final isSelected = _selectedWallet.toLowerCase() == wallet.name.toLowerCase();
+                          final walletColor = Color(int.parse(wallet.colorHex.replaceFirst('#', '0xFF')));
+                          return _buildWalletCard(
+                            context,
+                            wallet.name,
+                            balance,
+                            IconData(wallet.iconCode, fontFamily: 'MaterialIcons'),
+                            isSelected,
+                            walletColor,
+                            isSource: true,
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text("Ke Dompet (Tujuan)", 
+                        style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 14, color: isDark ? Colors.white70 : Colors.black54)),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 52,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: wallets.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 10),
+                        itemBuilder: (context, index) {
+                          final wallet = wallets[index];
+                          final balance = wallet.initialBalance + _calculateBalance(provider.transactions, wallet.name);
+                          final isSelected = _selectedTargetWallet.toLowerCase() == wallet.name.toLowerCase();
+                          final walletColor = Color(int.parse(wallet.colorHex.replaceFirst('#', '0xFF')));
+                          return _buildWalletCard(
+                            context,
+                            wallet.name,
+                            balance,
+                            IconData(wallet.iconCode, fontFamily: 'MaterialIcons'),
+                            isSelected,
+                            walletColor,
+                            isSource: false,
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ] else ...[
+                  if (wallets.isNotEmpty) ...[
+                    Text("Pilih Dompet", 
+                        style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 14, color: isDark ? Colors.white70 : Colors.black54)),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 52,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: wallets.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 10),
+                        itemBuilder: (context, index) {
+                          final wallet = wallets[index];
+                          final balance = wallet.initialBalance + _calculateBalance(provider.transactions, wallet.name);
+                          final isSelected = _selectedWallet.toLowerCase() == wallet.name.toLowerCase();
+                          final walletColor = Color(int.parse(wallet.colorHex.replaceFirst('#', '0xFF')));
+                          return _buildWalletCard(
+                            context,
+                            wallet.name,
+                            balance,
+                            IconData(wallet.iconCode, fontFamily: 'MaterialIcons'),
+                            isSelected,
+                            walletColor,
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  Text(_type == 'Pengeluaran' ? "Kategori Pengeluaran" : "Sumber Pemasukan", 
+                      style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 14, color: isDark ? Colors.white70 : Colors.black54)),
+                  const SizedBox(height: 8),
+                  
+                  if (_type == 'Pengeluaran' && budgetProvider.budgets.isEmpty)
+                    _buildEmptyBudgetWarning()
+                  else
+                    _buildDynamicCategories(context),
+                ],
 
                 const SizedBox(height: 16),
                 TextField(
@@ -325,6 +459,7 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
         children: [
           _buildTypeButton("Pengeluaran", AppColors.expenseRed, _type == 'Pengeluaran'),
           _buildTypeButton("Pemasukan", AppColors.incomeGreen, _type == 'Pemasukan'),
+          _buildTypeButton("Transfer", Colors.blueAccent, _type == 'Transfer'),
         ],
       ),
     );
@@ -346,31 +481,44 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
     );
   }
 
-  Widget _buildWalletCard(BuildContext context, String name, double balance, IconData icon, bool isSelected) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _selectedWallet = name),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor, 
-            borderRadius: BorderRadius.circular(16), 
-            border: isSelected ? Border.all(color: AppColors.primaryBlue, width: 2) : Border.all(color: Colors.white10)
-          ),
-          child: Row(
-            children: [
-              Icon(icon, color: isSelected ? AppColors.primaryBlue : Colors.orange, size: 22),
-              const SizedBox(width: 8),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(name, style: GoogleFonts.nunito(
-                  fontWeight: FontWeight.bold, 
-                  fontSize: 13,
-                  color: Theme.of(context).textTheme.bodyLarge?.color
-                )),
-                Text(NumberFormat.compactCurrency(locale: 'id_ID', symbol: 'Rp').format(balance), style: const TextStyle(fontSize: 10, color: Colors.grey)),
-              ]))
-            ],
-          ),
+  Widget _buildWalletCard(BuildContext context, String name, double balance, IconData icon, bool isSelected, Color walletColor, {bool? isSource}) {
+    return GestureDetector(
+      onTap: () => setState(() {
+        if (isSource == null) {
+          _selectedWallet = name;
+        } else if (isSource) {
+          _selectedWallet = name;
+        } else {
+          _selectedTargetWallet = name;
+        }
+      }),
+      child: Container(
+        width: 140,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor, 
+          borderRadius: BorderRadius.circular(16), 
+          border: isSelected ? Border.all(color: walletColor, width: 2) : Border.all(color: Colors.grey.withOpacity(0.15))
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: isSelected ? walletColor : Colors.grey, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(name, style: GoogleFonts.nunito(
+                    fontWeight: FontWeight.bold, 
+                    fontSize: 12,
+                    color: Theme.of(context).textTheme.bodyLarge?.color
+                  ), overflow: TextOverflow.ellipsis),
+                  Text(NumberFormat.compactCurrency(locale: 'id_ID', symbol: 'Rp').format(balance), style: const TextStyle(fontSize: 10, color: Colors.grey), overflow: TextOverflow.ellipsis),
+                ]
+              )
+            )
+          ],
         ),
       ),
     );
@@ -425,13 +573,45 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
       return;
     }
 
+    if (_type == 'Transfer') {
+      if (_selectedWallet.toLowerCase() == _selectedTargetWallet.toLowerCase()) {
+        SipekaNotification.showWarning(context, "Dompet asal dan tujuan tidak boleh sama!");
+        return;
+      }
+
+      final expenseTx = Transaction(
+        id: const Uuid().v4(),
+        title: _noteController.text.isEmpty ? "Transfer ke $_selectedTargetWallet" : _noteController.text,
+        amount: amount,
+        date: _selectedDate,
+        type: TransactionType.expense,
+        category: "Transfer",
+        wallet: _selectedWallet,
+      );
+
+      final incomeTx = Transaction(
+        id: const Uuid().v4(),
+        title: _noteController.text.isEmpty ? "Transfer dari $_selectedWallet" : _noteController.text,
+        amount: amount,
+        date: _selectedDate,
+        type: TransactionType.income,
+        category: "Transfer",
+        wallet: _selectedTargetWallet,
+      );
+
+      _executeSaveTransfer(expenseTx, incomeTx);
+      return;
+    }
+
     // VALIDASI WAJIB PILIH KATEGORI
     if (_selectedCategory == null) {
       HapticFeedback.vibrate(); 
       // --- SEKARANG PESANNYA DINAMIS ---
       SipekaNotification.showWarning(
         context, 
-        "Pilih kategori Pengeluaran dulu, $namaUser!"
+        _type == 'Pengeluaran'
+            ? "Pilih kategori Pengeluaran dulu, $namaUser!"
+            : "Pilih kategori Pemasukan dulu, $namaUser!"
       );
       return;
     }
@@ -499,6 +679,7 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
       }
     } catch (e) {
       debugPrint("Error Camera: $e");
+      if (!mounted) return;
       SipekaNotification.showWarning(context, "Kamera tidak bisa dibuka. Cek izin aplikasi.");
     }
   }
@@ -524,6 +705,7 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
     );
 
     if (croppedFile == null) return;
+    if (!mounted) return;
 
     BuildContext? dialogContext;
     showDialog(
@@ -567,7 +749,39 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
     }
   }
 
+  void _executeSaveTransfer(Transaction expenseTx, Transaction incomeTx) async {
+    // Tampilkan loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+    );
 
+    try {
+      final txProvider = Provider.of<TransactionProvider>(context, listen: false);
+      final success1 = await txProvider.addTransaction(expenseTx);
+      final success2 = await txProvider.addTransaction(incomeTx);
+      
+      // Tutup loading dialog secara aman
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      
+      if (success1 && success2) {
+        if (mounted) {
+          Navigator.pop(context); // Kembali ke screen sebelumnya
+          SipekaNotification.showSuccess(context, "Mantap! Transfer saldomu berhasil disimpan.");
+        }
+      } else {
+        if (mounted) {
+          SipekaNotification.showWarning(context, "Gagal menyimpan transaksi transfer.");
+        }
+      }
+    } catch (e) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (mounted) {
+        SipekaNotification.showWarning(context, "Terjadi kesalahan: $e");
+      }
+    }
+  }
 
   void _executeSave(Transaction newTx) async {
     // Tampilkan loading dialog

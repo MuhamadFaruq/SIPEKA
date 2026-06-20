@@ -5,6 +5,7 @@ import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:sipeka/features/bill/domain/entities/bill_entity.dart';
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _notificationsPlugin =
@@ -54,7 +55,6 @@ class NotificationService {
               AndroidFlutterLocalNotificationsPlugin>();
 
       await androidImplementation?.requestNotificationsPermission();
-      await androidImplementation?.requestExactAlarmsPermission();
     }
   }
 
@@ -79,7 +79,7 @@ class NotificationService {
         ),
         iOS: DarwinNotificationDetails(),
       ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       matchDateTimeComponents: DateTimeComponents.time,
     );
     
@@ -99,5 +99,54 @@ class NotificationService {
 
   static Future<void> cancelAll() async {
     await _notificationsPlugin.cancelAll();
+  }
+
+  static Future<void> scheduleBillReminder(BillEntity bill) async {
+    await cancelBillReminder(bill.id);
+
+    if (!bill.isActive || !bill.remindMe) return;
+
+    final reminderDate = bill.nextExecutionDate.subtract(const Duration(days: 1));
+    final scheduledTime = DateTime(reminderDate.year, reminderDate.month, reminderDate.day, 9, 0);
+    
+    if (scheduledTime.isBefore(DateTime.now())) {
+      debugPrint("Waktu pengingat H-1 untuk bill '${bill.title}' sudah lewat.");
+      return;
+    }
+
+    final tz.TZDateTime tzScheduledTime = tz.TZDateTime.from(scheduledTime, tz.local);
+
+    try {
+      await _notificationsPlugin.zonedSchedule(
+        id: bill.id.hashCode,
+        title: 'Tagihan Besok ⏰',
+        body: 'Tagihan "${bill.title}" sebesar Rp ${bill.amount.toStringAsFixed(0)} akan jatuh tempo besok.',
+        scheduledDate: tzScheduledTime,
+        notificationDetails: const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'bill_reminder',
+            'Bill Reminder',
+            channelDescription: 'Pengingat H-1 jatuh tempo tagihan rutin',
+            importance: Importance.max,
+            priority: Priority.high,
+            playSound: true,
+          ),
+          iOS: DarwinNotificationDetails(),
+        ),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      );
+      debugPrint("Berhasil menjadwalkan pengingat H-1 bill '${bill.title}' pada $tzScheduledTime");
+    } catch (e) {
+      debugPrint("Gagal menjadwalkan pengingat H-1: $e");
+    }
+  }
+
+  static Future<void> cancelBillReminder(String billId) async {
+    try {
+      await _notificationsPlugin.cancel(id: billId.hashCode);
+      debugPrint("Membatalkan pengingat untuk bill ID: $billId");
+    } catch (e) {
+      debugPrint("Gagal membatalkan pengingat: $e");
+    }
   }
 }

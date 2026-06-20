@@ -23,13 +23,17 @@ import 'package:sipeka/core/services/notifications.dart';
 import 'package:sipeka/features/transaction/presentation/utils/transaction_helper.dart';
 
 // Import Screen
+import 'package:sipeka/features/wallet/presentation/controllers/wallet_provider.dart';
+import 'package:sipeka/features/wallet/domain/entities/wallet_entity.dart';
 import 'all_transactions_screen.dart';
 import 'ai_chat_screen.dart';
+import 'input_transaction_screen.dart';
 import 'package:sipeka/features/settings/presentation/screens/settings_screen.dart';
 
 import 'package:sipeka/features/transaction/presentation/widgets/transaction_pie_chart.dart';
-import 'package:sipeka/widgets/balance_card.dart';
 import 'package:sipeka/core/theme/app_theme.dart';
+import 'dart:async';
+import 'package:sipeka/core/services/widget_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -43,6 +47,65 @@ class _HomeScreenState extends State<HomeScreen> {
   final stt.SpeechToText _speech = stt.SpeechToText();
   bool _isListening = false;
   String _voiceText = "Tekan & tahan tombol mic untuk bicara...";
+
+  StreamSubscription<Uri?>? _widgetClickedSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _initWidgetInteraction();
+  }
+
+  @override
+  void dispose() {
+    _widgetClickedSubscription?.cancel();
+    super.dispose();
+  }
+
+  void _initWidgetInteraction() async {
+    // 1. Cek jika aplikasi diluncurkan pertama kali dari widget (saat mati)
+    final Uri? initialUri = await WidgetService.getInitiallyLaunchedUri();
+    if (initialUri != null) {
+      _handleWidgetClickAction(initialUri);
+    }
+
+    // 2. Dengarkan klik widget jika aplikasi sedang berjalan di background/aktif
+    _widgetClickedSubscription = WidgetService.widgetClickedStream.listen((Uri? uri) {
+      if (uri != null) {
+        _handleWidgetClickAction(uri);
+      }
+    });
+  }
+
+  void _handleWidgetClickAction(Uri uri) {
+    debugPrint("Klik Widget Terdeteksi: ${uri.toString()}");
+    final String actionPath = uri.path;
+
+    if (actionPath.contains("voice")) {
+      // Buka dialog Input Suara
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (!mounted) return;
+        _showVoiceInputDialog();
+      });
+    } else if (actionPath.contains("camera")) {
+      // Buka kamera scan nota
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (!mounted) return;
+        Navigator.push(
+          context,
+          SmoothPageRoute(
+            child: const InputTransactionScreen(startOcrScan: true),
+          ),
+        );
+      });
+    } else if (actionPath.contains("shortcut")) {
+      // Buka dialog tambah jalan pintas
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (!mounted) return;
+        _showAddShortcutDialog();
+      });
+    }
+  }
 
   void _showVoiceInputDialog() async {
     if (_speech.isListening) return;
@@ -169,7 +232,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
                               padding: EdgeInsets.zero,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                              shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(15))),
                               elevation: 2,
                             ),
                             onPressed: () {
@@ -377,9 +440,8 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    double dompetBalance = _calculateBalance(sortedTransactions, 'Dompet');
-    double eWalletBalance = _calculateBalance(sortedTransactions, 'E-Wallet');
-    double totalBalance = dompetBalance + eWalletBalance;
+    final wallets = Provider.of<WalletProvider>(context).wallets;
+    final double totalBalance = provider.getTotalBalance(wallets);
 
     String financialStatus;
     if (totalBalance <= 0) {
@@ -403,8 +465,8 @@ class _HomeScreenState extends State<HomeScreen> {
               pinned: true,
               delegate: CollapsingHeaderDelegate(
                 statusBarHeight: statusBarHeight,
-                dompetBalance: dompetBalance,
-                eWalletBalance: eWalletBalance,
+                wallets: wallets,
+                txProvider: provider,
                 userName: themeProvider.userName,
                 statusText: financialStatus,
                 statusColor: statusColor,
@@ -430,12 +492,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildInsightsSection(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 20, left: 20, right: 20),
+      padding: const EdgeInsets.only(top: 15, left: 20, right: 20, bottom: 5),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text("Analisis Pengeluaran", style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -461,7 +523,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildQuickActionsSection(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.only(top: 5, left: 20, right: 20, bottom: 5),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -475,7 +537,7 @@ class _HomeScreenState extends State<HomeScreen> {
               )
             ],
           ),
-          const SizedBox(height: 15),
+          const SizedBox(height: 10),
           Consumer<QuickActionProvider>(
             builder: (context, actionProvider, child) {
               if (actionProvider.actions.isEmpty) {
@@ -502,7 +564,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildLatestTransactionsSection(BuildContext context, List<Transaction> sortedTransactions) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.only(top: 5, left: 20, right: 20, bottom: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -516,7 +578,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           sortedTransactions.isEmpty 
           ? Center(child: Text("Belum ada data", style: GoogleFonts.nunito(color: Colors.grey)))
           : ListView.builder(
@@ -526,7 +588,7 @@ class _HomeScreenState extends State<HomeScreen> {
               itemCount: sortedTransactions.length > 5 ? 5 : sortedTransactions.length,
               itemBuilder: (ctx, index) => _buildTransactionItem(context, sortedTransactions[index]),
             ),
-          const SizedBox(height: 100), 
+          const SizedBox(height: 30), 
         ],
       ),
     );
@@ -578,28 +640,31 @@ class _HomeScreenState extends State<HomeScreen> {
                     color: isExpense ? AppColors.expenseRed : AppColors.incomeGreen,
                   ),
                 ),
-                Text(tx.wallet, style: GoogleFonts.nunito(color: Colors.grey, fontSize: 9)),
+                Builder(
+                  builder: (context) {
+                    final walletProv = Provider.of<WalletProvider>(context, listen: false);
+                    final wallet = walletProv.wallets.firstWhere(
+                      (w) => w.name.toLowerCase() == tx.wallet.toLowerCase(),
+                      orElse: () => const WalletEntity(id: '', name: '', initialBalance: 0, iconCode: 0, colorHex: '#9E9E9E'),
+                    );
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(tx.wallet, style: GoogleFonts.nunito(color: Colors.grey, fontSize: 9)),
+                        if (wallet.isShared) ...[
+                          const SizedBox(width: 3),
+                          const Icon(Icons.cloud_done_rounded, size: 10, color: Colors.blue),
+                        ],
+                      ],
+                    );
+                  }
+                ),
               ],
             ),
           ],
         ),
       ),
     );
-  }
-
-  double _calculateBalance(List<Transaction> transactions, String walletName) {
-    double income = 0;
-    double expense = 0;
-    for (var tx in transactions) {
-      if (tx.wallet == walletName) {
-        if (tx.type == TransactionType.income) {
-          income += tx.amount;
-        } else {
-          expense += tx.amount;
-        }
-      }
-    }
-    return income - expense;
   }
 
 
@@ -644,8 +709,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
 class CollapsingHeaderDelegate extends SliverPersistentHeaderDelegate {
   final double statusBarHeight;
-  final double dompetBalance;
-  final double eWalletBalance;
+  final List<WalletEntity> wallets;
+  final TransactionProvider txProvider;
   final String userName;
   final String statusText;
   final Color statusColor;
@@ -655,8 +720,8 @@ class CollapsingHeaderDelegate extends SliverPersistentHeaderDelegate {
 
   CollapsingHeaderDelegate({
     required this.statusBarHeight,
-    required this.dompetBalance,
-    required this.eWalletBalance,
+    required this.wallets,
+    required this.txProvider,
     required this.userName,
     required this.statusText,
     required this.statusColor,
@@ -684,7 +749,7 @@ class CollapsingHeaderDelegate extends SliverPersistentHeaderDelegate {
     // Corner radius of the header collapses from 30 to 0
     final double borderRadius = (30.0 * (1.0 - percent)).clamp(0.0, 30.0);
 
-    final double totalBalance = dompetBalance + eWalletBalance;
+    final double totalBalance = txProvider.getTotalBalance(wallets);
 
     return Container(
       decoration: BoxDecoration(
@@ -819,21 +884,53 @@ class CollapsingHeaderDelegate extends SliverPersistentHeaderDelegate {
                           ),
                         ),
                         const SizedBox(height: 15),
-                        Row(
-                          children: [
-                            BalanceCard(
-                              title: "Dompet",
-                              amount: dompetBalance,
-                              isNegative: dompetBalance < 0,
-                            ),
-                            const SizedBox(width: 15),
-                            BalanceCard(
-                              title: "E-Wallet",
-                              amount: eWalletBalance,
-                              isNegative: eWalletBalance < 0,
-                            ),
-                          ],
-                        ),
+                        if (wallets.isNotEmpty)
+                          SizedBox(
+                            height: 60,
+                            child: wallets.length == 1
+                                ? _buildWalletCard(
+                                    context,
+                                    wallets[0],
+                                    wallets[0].initialBalance +
+                                        txProvider.getWalletBalance(wallets[0].name),
+                                    customWidth: double.infinity,
+                                  )
+                                : wallets.length == 2
+                                    ? Row(
+                                        children: [
+                                          Expanded(
+                                            child: _buildWalletCard(
+                                              context,
+                                              wallets[0],
+                                              wallets[0].initialBalance +
+                                                  txProvider.getWalletBalance(wallets[0].name),
+                                              customWidth: double.infinity,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: _buildWalletCard(
+                                              context,
+                                              wallets[1],
+                                              wallets[1].initialBalance +
+                                                  txProvider.getWalletBalance(wallets[1].name),
+                                              customWidth: double.infinity,
+                                            ),
+                                          ),
+                                        ],
+                                      )
+                                    : ListView.separated(
+                                        scrollDirection: Axis.horizontal,
+                                        itemCount: wallets.length,
+                                        separatorBuilder: (_, __) => const SizedBox(width: 12),
+                                        itemBuilder: (context, index) {
+                                          final wallet = wallets[index];
+                                          final balance = wallet.initialBalance +
+                                              txProvider.getWalletBalance(wallet.name);
+                                          return _buildWalletCard(context, wallet, balance);
+                                        },
+                                      ),
+                          ),
                       ],
                     ),
                   ),
@@ -845,12 +942,57 @@ class CollapsingHeaderDelegate extends SliverPersistentHeaderDelegate {
     );
   }
 
+  Widget _buildWalletCard(BuildContext context, WalletEntity wallet, double balance, {double? customWidth}) {
+    final walletColor = Color(int.parse(wallet.colorHex.replaceFirst('#', '0xFF')));
+    return Container(
+      width: customWidth ?? 140,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            children: [
+              Icon(
+                IconData(wallet.iconCode, fontFamily: 'MaterialIcons'),
+                color: walletColor,
+                size: 16,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  wallet.name,
+                  style: GoogleFonts.nunito(fontSize: 11, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            NumberFormat.currency(
+              locale: 'id_ID',
+              symbol: 'Rp ',
+              decimalDigits: 0,
+            ).format(balance),
+            style: GoogleFonts.nunito(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: balance < 0 ? AppColors.expenseRed : Theme.of(context).textTheme.bodyLarge?.color,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   bool shouldRebuild(covariant CollapsingHeaderDelegate oldDelegate) {
-    return oldDelegate.dompetBalance != dompetBalance ||
-        oldDelegate.eWalletBalance != eWalletBalance ||
-        oldDelegate.userName != userName ||
-        oldDelegate.statusText != statusText ||
-        oldDelegate.statusColor != statusColor;
+    return true;
   }
 }

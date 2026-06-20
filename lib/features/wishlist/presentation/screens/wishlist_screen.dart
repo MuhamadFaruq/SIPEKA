@@ -22,8 +22,11 @@ class _WishlistScreenState extends State<WishlistScreen> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() =>
-        Provider.of<WishlistProvider>(context, listen: false).fetchAndSetWishlist());
+    Future.microtask(() {
+      if (mounted) {
+        Provider.of<WishlistProvider>(context, listen: false).fetchAndSetWishlist();
+      }
+    });
   }
 
   String formatRupiah(double number) {
@@ -98,7 +101,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
                             try {
                               await wishlistProvider.addSavings(item.id, nominal);
                               if (context.mounted) Navigator.pop(context); // Tutup loading
-                              Navigator.pop(ctx); // Tutup bottom sheet
+                              if (ctx.mounted) Navigator.pop(ctx); // Tutup bottom sheet
                               if (context.mounted) SipekaNotification.showSuccess(context, "Berhasil menabung ${formatRupiah(nominal)}!");
                             } catch (e) {
                               if (context.mounted) Navigator.pop(context); // Tutup loading
@@ -199,7 +202,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
                                 savedAmount: 0.0,
                               ));
                               if (context.mounted) Navigator.pop(context); // Tutup loading
-                              Navigator.pop(ctx); // Tutup bottom sheet
+                              if (ctx.mounted) Navigator.pop(ctx); // Tutup bottom sheet
                               if (context.mounted) SipekaNotification.showSuccess(context, "Impian baru ditambahkan!");
                             } catch (e) {
                               if (context.mounted) Navigator.pop(context); // Tutup loading

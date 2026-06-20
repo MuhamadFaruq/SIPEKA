@@ -5,6 +5,12 @@ import 'package:sipeka/features/transaction/presentation/screens/home_screen.dar
 import 'package:sipeka/features/insight/presentation/screens/insight_screen.dart'; 
 import 'package:sipeka/features/wishlist/presentation/screens/wishlist_screen.dart'; 
 import 'package:sipeka/features/transaction/presentation/screens/input_transaction_screen.dart'; 
+import 'package:sipeka/core/services/app_security_manager.dart';
+import 'package:sipeka/core/theme/app_theme.dart';
+import 'package:provider/provider.dart';
+import 'package:sipeka/core/services/shared_wallet_sync_service.dart';
+import 'package:sipeka/features/transaction/presentation/controllers/transaction_provider.dart';
+import 'package:sipeka/features/wallet/presentation/controllers/wallet_provider.dart';
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
@@ -21,6 +27,25 @@ class _MainNavigationState extends State<MainNavigation> {
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: _selectedIndex);
+    AppSecurityManager.isAuthenticated = true;
+    
+    // Mulai listener sinkronisasi Dompet Bersama (real-time)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        SharedWalletSyncService.instance.startListeningToSharedWallets(
+          onTransactionUpdated: () {
+            if (mounted) {
+              Provider.of<TransactionProvider>(context, listen: false).fetchAndSetTransactions();
+            }
+          },
+          onWalletUpdated: () {
+            if (mounted) {
+              Provider.of<WalletProvider>(context, listen: false).fetchAndSetWallets();
+            }
+          },
+        );
+      }
+    });
   }
 
   @override
@@ -47,7 +72,7 @@ class _MainNavigationState extends State<MainNavigation> {
   void _onFabTapped() async { 
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const InputTransactionScreen()),
+      SmoothPageRoute(child: const InputTransactionScreen()),
     );
 
     if (result != null && result is int) {

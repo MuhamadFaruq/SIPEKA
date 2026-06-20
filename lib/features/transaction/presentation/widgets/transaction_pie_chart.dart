@@ -13,9 +13,13 @@ class TransactionPieChart extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<TransactionProvider>(
       builder: (context, provider, child) {
-        // 1. Ambil data pengeluaran saja
+        final now = DateTime.now();
+        // 1. Ambil data pengeluaran bulan berjalan saja
         final expenses = provider.transactions
-            .where((tx) => tx.type == TransactionType.expense)
+            .where((tx) =>
+                tx.type == TransactionType.expense &&
+                tx.date.month == now.month &&
+                tx.date.year == now.year)
             .toList();
 
         if (expenses.isEmpty) {

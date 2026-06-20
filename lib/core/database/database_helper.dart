@@ -21,7 +21,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 2,
+      version: 5,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -84,6 +84,52 @@ class DatabaseHelper {
       )
     ''');
 
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS wallets (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        initial_balance REAL NOT NULL DEFAULT 0,
+        icon_code INTEGER NOT NULL DEFAULT 0,
+        color_hex TEXT NOT NULL DEFAULT '#007AFF',
+        invite_code TEXT,
+        owner_id TEXT,
+        is_shared INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS bills (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        amount REAL NOT NULL,
+        type TEXT NOT NULL,
+        category TEXT NOT NULL,
+        wallet TEXT NOT NULL,
+        frequency TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        last_executed_date TEXT,
+        next_execution_date TEXT NOT NULL,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        remind_me INTEGER NOT NULL DEFAULT 1
+      )
+    ''');
+
+    // Seed default wallets
+    await db.insert('wallets', {
+      'id': 'dompet',
+      'name': 'Dompet',
+      'initial_balance': 0.0,
+      'icon_code': 58263, // Icons.wallet
+      'color_hex': '#2972FF'
+    });
+    await db.insert('wallets', {
+      'id': 'ewallet',
+      'name': 'E-Wallet',
+      'initial_balance': 0.0,
+      'icon_code': 57929, // Icons.account_balance_wallet
+      'color_hex': '#00B0FF'
+    });
+
     debugPrint("DATABASE: Semua tabel berhasil dibuat!");
   }
 
@@ -99,6 +145,63 @@ class DatabaseHelper {
         )
       ''');
       debugPrint("DATABASE: Tabel chat_messages berhasil ditambahkan di upgrade v2!");
+    }
+    if (oldVersion < 3) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS wallets (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          initial_balance REAL NOT NULL DEFAULT 0,
+          icon_code INTEGER NOT NULL DEFAULT 0,
+          color_hex TEXT NOT NULL DEFAULT '#007AFF'
+        )
+      ''');
+      
+      // Seed default wallets
+      await db.insert('wallets', {
+        'id': 'dompet',
+        'name': 'Dompet',
+        'initial_balance': 0.0,
+        'icon_code': 58263,
+        'color_hex': '#2972FF'
+      });
+      await db.insert('wallets', {
+        'id': 'ewallet',
+        'name': 'E-Wallet',
+        'initial_balance': 0.0,
+        'icon_code': 57929,
+        'color_hex': '#00B0FF'
+      });
+      debugPrint("DATABASE: Tabel wallets berhasil ditambahkan & di-seed di upgrade v3!");
+    }
+    if (oldVersion < 4) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS bills (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          amount REAL NOT NULL,
+          type TEXT NOT NULL,
+          category TEXT NOT NULL,
+          wallet TEXT NOT NULL,
+          frequency TEXT NOT NULL,
+          start_date TEXT NOT NULL,
+          last_executed_date TEXT,
+          next_execution_date TEXT NOT NULL,
+          is_active INTEGER NOT NULL DEFAULT 1,
+          remind_me INTEGER NOT NULL DEFAULT 1
+        )
+      ''');
+      debugPrint("DATABASE: Tabel bills berhasil ditambahkan di upgrade v4!");
+    }
+    if (oldVersion < 5) {
+      try {
+        await db.execute('ALTER TABLE wallets ADD COLUMN invite_code TEXT');
+        await db.execute('ALTER TABLE wallets ADD COLUMN owner_id TEXT');
+        await db.execute('ALTER TABLE wallets ADD COLUMN is_shared INTEGER DEFAULT 0');
+        debugPrint("DATABASE: Tabel wallets berhasil diupgrade ke v5 (kolom sharing ditambahkan)!");
+      } catch (e) {
+        debugPrint("DATABASE: Error upgrading wallets to v5: $e");
+      }
     }
   }
 
@@ -254,7 +357,66 @@ class DatabaseHelper {
     await db.delete('wishlist');
     await db.delete('debts');
     await db.delete('chat_messages');
-    debugPrint("DATABASE: Semua tabel sudah dibersihkan.");
+    await db.delete('quick_actions');
+    await db.delete('wallets');
+    await db.delete('bills');
+
+    // Re-seed default wallets
+    await db.insert('wallets', {
+      'id': 'dompet',
+      'name': 'Dompet',
+      'initial_balance': 0.0,
+      'icon_code': 58263,
+      'color_hex': '#2972FF'
+    });
+    await db.insert('wallets', {
+      'id': 'ewallet',
+      'name': 'E-Wallet',
+      'initial_balance': 0.0,
+      'icon_code': 57929,
+      'color_hex': '#00B0FF'
+    });
+    
+    debugPrint("DATABASE: Semua tabel sudah dibersihkan dan wallets di-seed kembali.");
+  }
+
+  // --- CRUD WALLETS ---
+  Future<int> insertWallet(Map<String, dynamic> row) async {
+    final db = await database;
+    try {
+      final result = await db.insert(
+        'wallets',
+        row,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      debugPrint("DATABASE: insertWallet OK, id=${row['id']}");
+      return result;
+    } catch (e) {
+      debugPrint("DATABASE: insertWallet ERROR: $e");
+      rethrow;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getAllWallets() async {
+    final db = await database;
+    final result = await db.query('wallets');
+    debugPrint("DATABASE: getAllWallets => ${result.length} rows");
+    return result;
+  }
+
+  Future<int> updateWallet(String id, Map<String, dynamic> row) async {
+    final db = await database;
+    return await db.update('wallets', row, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> deleteWallet(String id) async {
+    final db = await database;
+    return await db.delete('wallets', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> clearWalletTable() async {
+    final db = await database;
+    return await db.delete('wallets');
   }
 
   // --- CRUD CHAT MESSAGES ---
@@ -286,5 +448,44 @@ class DatabaseHelper {
     final db = await database;
     db.close();
     _database = null;
+  }
+ 
+  // --- CRUD BILLS ---
+  Future<int> insertBill(Map<String, dynamic> row) async {
+    final db = await database;
+    try {
+      final result = await db.insert(
+        'bills',
+        row,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      debugPrint("DATABASE: insertBill OK, id=${row['id']}");
+      return result;
+    } catch (e) {
+      debugPrint("DATABASE: insertBill ERROR: $e");
+      rethrow;
+    }
+  }
+ 
+  Future<List<Map<String, dynamic>>> getAllBills() async {
+    final db = await database;
+    final result = await db.query('bills');
+    debugPrint("DATABASE: getAllBills => ${result.length} rows");
+    return result;
+  }
+ 
+  Future<int> updateBill(String id, Map<String, dynamic> row) async {
+    final db = await database;
+    return await db.update('bills', row, where: 'id = ?', whereArgs: [id]);
+  }
+ 
+  Future<int> deleteBill(String id) async {
+    final db = await database;
+    return await db.delete('bills', where: 'id = ?', whereArgs: [id]);
+  }
+ 
+  Future<int> clearBillTable() async {
+    final db = await database;
+    return await db.delete('bills');
   }
 }

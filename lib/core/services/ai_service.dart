@@ -96,6 +96,85 @@ Aturan:
     }
   }
 
+  Future<Map<String, dynamic>?> parseOcrTextToTransaction(String rawText, List<String> availableCategories) async {
+    validateApiKey();
+    try {
+      final prompt = '''
+Anda adalah AI Financial Assistant. Tugas Anda adalah menganalisis teks hasil pemindaian OCR dari struk/nota belanja dan mengekstrak total nominal belanja serta kategorinya.
+Teks OCR:
+"$rawText"
+
+Kategori yang tersedia: ${availableCategories.isNotEmpty ? availableCategories.join(', ') : 'Belum ada kategori khusus, gunakan kategori umum seperti Makan, Transport, Belanja, Lainnya'}
+
+Aturan:
+1. Kembalikan HANYA JSON object dengan key: "amount" (Number, total pengeluaran belanja/grand total), dan "category" (String, kategori yang paling cocok dari daftar).
+2. Jika tidak ada nominal yang terdeteksi, kembalikan key "amount" bernilai null atau 0.
+3. Jangan tambahkan markdown seperti ```json atau penjelasan apapun. HANYA JSON format yang valid.
+''';
+      
+      final content = [Content.text(prompt)];
+      final response = await _model.generateContent(content).timeout(const Duration(seconds: 15));
+      if (response.text != null) {
+        String jsonText = response.text!.trim();
+        if (jsonText.startsWith('```json')) {
+          jsonText = jsonText.substring(7);
+        } else if (jsonText.startsWith('```')) {
+          jsonText = jsonText.substring(3);
+        }
+        if (jsonText.endsWith('```')) {
+          jsonText = jsonText.substring(0, jsonText.length - 3);
+        }
+        
+        final decoded = jsonDecode(jsonText.trim());
+        return decoded as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      print('Error parsing OCR text with AI: $e');
+      return null; // Return null so caller can do fallback safely
+    }
+  }
+
+  Future<double?> parseOcrTextToAmount(String rawText) async {
+    validateApiKey();
+    try {
+      final prompt = '''
+Anda adalah AI Financial Assistant. Tugas Anda adalah menganalisis teks hasil pemindaian OCR dari struk/nota belanja dan mengekstrak total nominal belanja (grand total).
+Teks OCR:
+"$rawText"
+
+Aturan:
+1. Kembalikan HANYA JSON object dengan key: "amount" (Number, total pengeluaran belanja/grand total).
+2. Jika tidak ada nominal yang terdeteksi, kembalikan key "amount" bernilai null atau 0.
+3. Jangan tambahkan markdown seperti ```json atau penjelasan apapun. HANYA JSON format yang valid.
+''';
+      
+      final content = [Content.text(prompt)];
+      final response = await _model.generateContent(content).timeout(const Duration(seconds: 15));
+      if (response.text != null) {
+        String jsonText = response.text!.trim();
+        if (jsonText.startsWith('```json')) {
+          jsonText = jsonText.substring(7);
+        } else if (jsonText.startsWith('```')) {
+          jsonText = jsonText.substring(3);
+        }
+        if (jsonText.endsWith('```')) {
+          jsonText = jsonText.substring(0, jsonText.length - 3);
+        }
+        
+        final decoded = jsonDecode(jsonText.trim());
+        final amt = decoded['amount'];
+        if (amt != null) {
+          return (amt as num).toDouble();
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Error parsing OCR text to amount with AI: $e');
+      return null;
+    }
+  }
+
   Future<String> getFinancialAdvice(String advicePromptContext) async {
     validateApiKey();
     try {

@@ -218,11 +218,14 @@ class SyncService {
     final wishlistMap = await DatabaseHelper.instance.getAllWishlist();
 
     final List<Transaction> transactions = transactionsMap.map((e) => Transaction(
-      id: e['id'], title: e['title'],
+      id: e['id'] as String,
+      title: e['title'] as String,
       amount: (e['amount'] as num).toDouble(),
-      date: DateTime.parse(e['date']),
-      type: e['type'], category: e['category'],
-      wallet: e['wallet'], source: e['source'] ?? 'Manual',
+      date: DateTime.parse(e['date'] as String),
+      type: TransactionType.fromString(e['type'] as String?),
+      category: e['category'] as String,
+      wallet: e['wallet'] as String,
+      source: (e['source'] as String?) ?? 'Manual',
     )).toList();
 
     final List<Budget> budgets = budgetsMap.map((e) => Budget(
@@ -233,11 +236,13 @@ class SyncService {
     )).toList();
 
     final List<Debt> debts = debtsMap.map((e) => Debt(
-      id: e['id'], name: e['name'],
+      id: e['id'] as String,
+      name: e['name'] as String,
       amount: (e['amount'] as num).toDouble(),
-      date: DateTime.parse(e['date']),
-      type: e['type'], isPaid: e['is_paid'] == 1,
-      notes: e['notes'],
+      date: DateTime.parse(e['date'] as String),
+      type: e['type'] as String,
+      isPaid: e['is_paid'] == 1,
+      notes: e['notes'] as String?,
     )).toList();
 
     final List<WishlistItem> wishlists = wishlistMap.map((e) => WishlistItem(
@@ -250,6 +255,37 @@ class SyncService {
     await syncBudgets(budgets);
     await syncDebts(debts);
     await syncWishlist(wishlists);
+
+    // Sync wallets to Cloud
+    final walletsMap = await DatabaseHelper.instance.getAllWallets();
+    final walletsCollection = _firestore.collection('users').doc(_userId).collection('wallets');
+    for (var w in walletsMap) {
+      await walletsCollection.doc(w['id']).set({
+        'name': w['name'],
+        'initial_balance': w['initial_balance'],
+        'icon_code': w['icon_code'],
+        'color_hex': w['color_hex'],
+      });
+    }
+
+    // Sync bills to Cloud
+    final billsMap = await DatabaseHelper.instance.getAllBills();
+    final billsCollection = _firestore.collection('users').doc(_userId).collection('bills');
+    for (var b in billsMap) {
+      await billsCollection.doc(b['id']).set({
+        'title': b['title'],
+        'amount': b['amount'],
+        'type': b['type'],
+        'category': b['category'],
+        'wallet': b['wallet'],
+        'frequency': b['frequency'],
+        'start_date': b['start_date'],
+        'last_executed_date': b['last_executed_date'],
+        'next_execution_date': b['next_execution_date'],
+        'is_active': b['is_active'],
+        'remind_me': b['remind_me'],
+      });
+    }
   }
 
   /// Memulihkan semua data dari Firebase Cloud ke SQLite lokal.
@@ -263,6 +299,8 @@ class SyncService {
     final budgets = await getBudgetsFromCloud();
     final debts = await getDebtsFromCloud();
     final wishlist = await getWishlistFromCloud();
+    final walletsSnapshot = await _firestore.collection('users').doc(_userId).collection('wallets').get();
+    final billsSnapshot = await _firestore.collection('users').doc(_userId).collection('bills').get();
 
     final db = await DatabaseHelper.instance.database;
 
@@ -274,6 +312,38 @@ class SyncService {
       await txn.delete('wishlist');
       await txn.delete('debts');
       await txn.delete('chat_messages');
+      await txn.delete('wallets');
+      await txn.delete('bills');
+
+      // Restore wallets
+      if (walletsSnapshot.docs.isEmpty) {
+        // Seed default wallets if cloud is empty
+        await txn.insert('wallets', {
+          'id': 'dompet',
+          'name': 'Dompet',
+          'initial_balance': 0.0,
+          'icon_code': 58263,
+          'color_hex': '#2972FF'
+        });
+        await txn.insert('wallets', {
+          'id': 'ewallet',
+          'name': 'E-Wallet',
+          'initial_balance': 0.0,
+          'icon_code': 57929,
+          'color_hex': '#00B0FF'
+        });
+      } else {
+        for (var doc in walletsSnapshot.docs) {
+          final data = doc.data();
+          await txn.insert('wallets', {
+            'id': doc.id,
+            'name': data['name'] ?? '',
+            'initial_balance': (data['initial_balance'] as num?)?.toDouble() ?? 0.0,
+            'icon_code': data['icon_code'] ?? 0,
+            'color_hex': data['color_hex'] ?? '#007AFF',
+          });
+        }
+      }
 
       // 3. Masukkan transaksi ke SQLite lokal
       for (var tx in transactions) {
@@ -334,6 +404,29 @@ class SyncService {
             'target': w.targetAmount,
             'collected': w.savedAmount,
             'icon_code': 0, // default
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+
+      // 7. Masukkan bills ke SQLite lokal
+      for (var doc in billsSnapshot.docs) {
+        final data = doc.data();
+        await txn.insert(
+          'bills',
+          {
+            'id': doc.id,
+            'title': data['title'] ?? '',
+            'amount': (data['amount'] as num?)?.toDouble() ?? 0.0,
+            'type': data['type'] ?? 'Expense',
+            'category': data['category'] ?? '',
+            'wallet': data['wallet'] ?? '',
+            'frequency': data['frequency'] ?? 'monthly',
+            'start_date': data['start_date'] ?? '',
+            'last_executed_date': data['last_executed_date'],
+            'next_execution_date': data['next_execution_date'] ?? '',
+            'is_active': data['is_active'] ?? 1,
+            'remind_me': data['remind_me'] ?? 1,
           },
           conflictAlgorithm: ConflictAlgorithm.replace,
         );

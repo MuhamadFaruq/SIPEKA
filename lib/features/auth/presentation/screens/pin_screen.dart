@@ -7,9 +7,13 @@ import 'package:sipeka/core/services/auth_service.dart';
 import 'package:sipeka/core/services/notifications.dart';
 import 'package:sipeka/core/utils/security_helper.dart';
 import 'package:sipeka/features/dashboard/presentation/screens/main_navigation.dart';
+import 'package:sipeka/core/services/app_security_manager.dart';
+import 'package:sipeka/core/theme/app_theme.dart';
 
 class PinScreen extends StatefulWidget {
-  const PinScreen({super.key});
+  final bool isModal;
+
+  const PinScreen({super.key, this.isModal = false});
 
   @override
   State<PinScreen> createState() => _PinScreenState();
@@ -26,6 +30,7 @@ class _PinScreenState extends State<PinScreen> {
   @override
   void initState() {
     super.initState();
+    AppSecurityManager.isPinScreenOpen = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadAndAuth();
     });
@@ -33,6 +38,7 @@ class _PinScreenState extends State<PinScreen> {
 
   @override
   void dispose() {
+    AppSecurityManager.isPinScreenOpen = false;
     _lockoutTimer?.cancel();
     super.dispose();
   }
@@ -102,12 +108,17 @@ class _PinScreenState extends State<PinScreen> {
   void _enterApp() {
     SecurityHelper.resetAttempts();
     if (!mounted) return;
+    AppSecurityManager.isAuthenticated = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const MainNavigation()),
-        );
+        if (widget.isModal) {
+          Navigator.pop(context);
+        } else {
+          Navigator.pushReplacement(
+            context,
+            SmoothPageRoute(child: const MainNavigation()),
+          );
+        }
       }
     });
   }
@@ -157,9 +168,10 @@ class _PinScreenState extends State<PinScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      backgroundColor: const Color(0xFF2972FF),
+      backgroundColor: isDark ? const Color(0xFF1A4BB3) : const Color(0xFF2972FF),
       body: SafeArea(
         child: Column(
           children: [

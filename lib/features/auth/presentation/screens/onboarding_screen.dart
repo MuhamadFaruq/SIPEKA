@@ -7,6 +7,7 @@ import 'package:sipeka/core/services/notifications.dart';
 import 'package:sipeka/features/dashboard/presentation/screens/main_navigation.dart';
 import 'package:provider/provider.dart';
 import 'package:sipeka/core/theme/theme_provider.dart';
+import 'package:sipeka/core/theme/app_theme.dart' hide AppColors;
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -23,18 +24,23 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final List<OnboardingPageData> _pages = [
     OnboardingPageData(
       icon: Icons.account_balance_wallet_rounded,
-      title: 'Teman Keuangan Kamu',
-      description: 'SIPEKA bukan bank yang ribet. Kami temen yang bantu kamu ngatur duit dengan cara yang gampang!',
+      title: 'Multi-Dompet & Transaksi',
+      description: 'Kelola kas fisik, bank, dan e-wallet secara terpisah. Catat pengeluaran, pemasukan, serta transfer saldo antar dompet dengan praktis.',
     ),
     OnboardingPageData(
-      icon: Icons.track_changes_rounded,
-      title: 'Catat Semua Transaksi',
-      description: 'Tinggal klik, langsung tercatat. Gak perlu ribet, gak perlu pusing. Semua transaksi kamu aman tersimpan.',
+      icon: Icons.psychology_rounded,
+      title: 'Asisten AI & Pemindai Pintar',
+      description: 'Catat otomatis lewat suara (Voice Input) atau pemindaian foto struk belanja (OCR), serta konsultasikan masalah keuanganmu dengan SIPEKA AI.',
+    ),
+    OnboardingPageData(
+      icon: Icons.people_alt_rounded,
+      title: 'Dompet Bersama (Shared Wallet)',
+      description: 'Bagikan akses dompet khusus secara real-time ke pasangan atau keluarga via kode undangan untuk mengelola keuangan rumah tangga bersama.',
     ),
     OnboardingPageData(
       icon: Icons.insights_rounded,
-      title: 'Lihat Pola Keuangan',
-      description: 'Ketahui kemana aja duit kamu pergi. Jadi lebih bijak dalam mengatur keuangan sehari-hari.',
+      title: 'Laporan Visual & Target',
+      description: 'Pantau pola keuangan lewat grafik interaktif, capai barang impian (Wishlist), serta ekspor laporan bulanan berformat PDF yang elegan.',
     ),
   ];
 
@@ -81,7 +87,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (mounted) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const MainNavigation()),
+        SmoothPageRoute(child: const MainNavigation()),
       );
     }
   }
@@ -180,13 +186,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             width: 120,
             height: 120,
             decoration: BoxDecoration(
-              color: const Color(0xFF2972FF).withOpacity(0.1),
+              color: const Color(0xFF2972FF).withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.account_balance_wallet_rounded, 
+            child: Icon(
+              page.icon, 
               size: 60,
-              color: Color(0xFF2972FF),
+              color: const Color(0xFF2972FF),
             ),
           ),
           const SizedBox(height: AppDimensions.spacingXXL),
@@ -225,7 +231,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             width: 120,
             height: 120,
             decoration: BoxDecoration(
-              color: const Color(0xFF2972FF).withOpacity(0.1),
+              color: const Color(0xFF2972FF).withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(

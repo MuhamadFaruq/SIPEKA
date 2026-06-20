@@ -23,9 +23,14 @@ import 'package:sipeka/core/services/notifications.dart';
 import 'package:sipeka/core/services/notification_service.dart';
 import 'package:sipeka/core/services/auth_service.dart'; 
 import 'package:sipeka/core/theme/theme_provider.dart';
+import 'package:sipeka/core/theme/app_theme.dart' hide AppColors;
 import 'package:sipeka/core/services/sync_service.dart';
 import 'package:uuid/uuid.dart';
 import 'package:sipeka/core/constants/constants.dart';
+import 'package:sipeka/features/wallet/presentation/controllers/wallet_provider.dart';
+import 'package:sipeka/features/wallet/presentation/screens/manage_wallets_screen.dart';
+import 'package:sipeka/features/bill/presentation/controllers/bill_provider.dart';
+import 'package:sipeka/features/bill/presentation/screens/manage_bills_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -42,6 +47,8 @@ class SettingsScreen extends StatelessWidget {
         
         bool isPinEnabled = prefs.getBool('is_security_enabled') ?? false;
         bool isBiometricEnabled = prefs.getBool('is_biometric_enabled') ?? false;
+        bool isAutolockEnabled = prefs.getBool('is_autolock_enabled') ?? true;
+        bool isBlurEnabled = prefs.getBool('is_blur_enabled') ?? true;
 
         return StatefulBuilder(
           builder: (context, setTileState) {
@@ -88,7 +95,9 @@ class SettingsScreen extends StatelessWidget {
                             isPinEnabled = false;
                             isBiometricEnabled = false;
                           });
-                          SipekaNotification.showWarning(context, "Kunci aplikasi dimatikan");
+                          if (context.mounted) {
+                            SipekaNotification.showWarning(context, "Kunci aplikasi dimatikan");
+                          }
                         }
                       }
                     },
@@ -101,7 +110,7 @@ class SettingsScreen extends StatelessWidget {
                     leading: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: (isBiometricEnabled ? Colors.teal : Colors.grey).withOpacity(0.1),
+                        color: (isBiometricEnabled ? Colors.teal : Colors.grey).withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
@@ -127,12 +136,76 @@ class SettingsScreen extends StatelessWidget {
                           if (canAuth) {
                             await prefs.setBool('is_biometric_enabled', true);
                             setTileState(() => isBiometricEnabled = true);
-                            SipekaNotification.showSuccess(context, "Biometrik diaktifkan!");
+                            if (context.mounted) {
+                              SipekaNotification.showSuccess(context, "Biometrik diaktifkan!");
+                            }
                           }
                         } else {
                           await prefs.setBool('is_biometric_enabled', false);
                           setTileState(() => isBiometricEnabled = false);
                         }
+                      },
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: (isAutolockEnabled ? Colors.orange : Colors.grey).withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.timer_outlined,
+                        color: isAutolockEnabled ? Colors.orange : Colors.grey,
+                        size: 20,
+                      ),
+                    ),
+                    title: Text(
+                      "Kunci Otomatis (Idle)",
+                      style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(
+                      isAutolockEnabled ? "Kunci otomatis saat 15s di latar belakang" : "Kunci otomatis nonaktif",
+                      style: GoogleFonts.nunito(fontSize: 11),
+                    ),
+                    trailing: Switch(
+                      value: isAutolockEnabled,
+                      activeColor: Colors.orange,
+                      onChanged: (bool value) async {
+                        await prefs.setBool('is_autolock_enabled', value);
+                        setTileState(() => isAutolockEnabled = value);
+                      },
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: (isBlurEnabled ? Colors.purple : Colors.grey).withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.blur_on_rounded,
+                        color: isBlurEnabled ? Colors.purple : Colors.grey,
+                        size: 20,
+                      ),
+                    ),
+                    title: Text(
+                      "Blur di App Switcher",
+                      style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(
+                      isBlurEnabled ? "Samarkan aplikasi saat beralih aplikasi" : "Tampilan aplikasi terlihat jelas",
+                      style: GoogleFonts.nunito(fontSize: 11),
+                    ),
+                    trailing: Switch(
+                      value: isBlurEnabled,
+                      activeColor: Colors.purple,
+                      onChanged: (bool value) async {
+                        await prefs.setBool('is_blur_enabled', value);
+                        setTileState(() => isBlurEnabled = value);
                       },
                     ),
                   ),
@@ -197,7 +270,9 @@ class SettingsScreen extends StatelessWidget {
                   });
                   
                   await NotificationService.scheduleReminder(hour: picked.hour, minute: picked.minute);
-                  SipekaNotification.showSuccess(context, "Jadwal diganti ke ${picked.format(context)}");
+                  if (context.mounted) {
+                    SipekaNotification.showSuccess(context, "Jadwal diganti ke ${picked.format(context)}");
+                  }
                 }
               } : null,
               trailing: Switch(
@@ -212,10 +287,14 @@ class SettingsScreen extends StatelessWidget {
 
                   if (value) {
                     await NotificationService.scheduleReminder(hour: selectedTime.hour, minute: selectedTime.minute);
-                    SipekaNotification.showSuccess(context, "Pengingat diaktifkan!");
+                    if (context.mounted) {
+                      SipekaNotification.showSuccess(context, "Pengingat diaktifkan!");
+                    }
                   } else {
                     await NotificationService.cancelAll();
-                    SipekaNotification.showWarning(context, "Semua pengingat dihapus.");
+                    if (context.mounted) {
+                      SipekaNotification.showWarning(context, "Semua pengingat dihapus.");
+                    }
                   }
                 },
               ),
@@ -315,6 +394,30 @@ class SettingsScreen extends StatelessWidget {
               children: [
                 _buildListTile(context: context, icon: Icons.flash_on, title: "Kelola Jalan Pintas", subtitle: "Tambah atau hapus transaksi cepat di Home", color: Colors.orange, onTap: () => _showManageShortcutsDialog(context)),
                 const Divider(height: 1),
+                _buildListTile(
+                  context: context,
+                  icon: Icons.account_balance_wallet_rounded,
+                  title: "Kelola Dompet & Rekening",
+                  subtitle: "Tambah, edit, atau hapus dompet keuangan",
+                  color: Colors.teal,
+                  onTap: () => Navigator.push(
+                    context,
+                    SmoothPageRoute(child: const ManageWalletsScreen()),
+                  ),
+                ),
+                const Divider(height: 1),
+                _buildListTile(
+                  context: context,
+                  icon: Icons.repeat_on_rounded,
+                  title: "Tagihan & Transaksi Berulang",
+                  subtitle: "Atur tagihan bulanan dan cicilan rutin",
+                  color: Colors.purple,
+                  onTap: () => Navigator.push(
+                    context,
+                    SmoothPageRoute(child: const ManageBillsScreen()),
+                  ),
+                ),
+                const Divider(height: 1),
                 _buildNotificationTile(context), 
                 const Divider(height: 1),
                 _buildListTile(context: context, icon: Icons.cloud_upload_outlined, title: "Ekspor Data", subtitle: "Simpan data ke format CSV", color: Colors.blue, onTap: () => _showExportOptions(context)),
@@ -400,7 +503,9 @@ class SettingsScreen extends StatelessWidget {
                       ),
                     );
                   } else {
-                    _showSyncOptionsDialog(context, currentUser);
+                    if (context.mounted) {
+                      _showSyncOptionsDialog(context, currentUser);
+                    }
                   }
                 }),
                 const Divider(height: 1),
@@ -414,14 +519,46 @@ class SettingsScreen extends StatelessWidget {
           _buildSettingCard(context: context, child: _buildSecurityTile(context)),
           
           const SizedBox(height: 25),
-          _buildSectionTitle(context, "Tentang"),
+          _buildSectionTitle(context, "Tentang & Bantuan"),
           _buildSettingCard(
             context: context, 
             child: Column(
               children: [
-                _buildListTile(context: context, icon: Icons.info_outline, title: "Versi Aplikasi", subtitle: "v1.0.0", color: Colors.grey, onTap: () {}),
+                _buildListTile(
+                  context: context, 
+                  icon: Icons.help_outline_rounded, 
+                  title: "Pusat Bantuan & FAQ", 
+                  subtitle: "Panduan cara menggunakan fitur SIPEKA", 
+                  color: Colors.blue, 
+                  onTap: () => _showHelpCenterDialog(context),
+                ),
                 const Divider(height: 1),
-                _buildListTile(context: context, icon: Icons.star_border, title: "Beri Rating", subtitle: "Dukung kami di Play Store", color: Colors.amber, onTap: () {}),
+                _buildListTile(
+                  context: context, 
+                  icon: Icons.feedback_outlined, 
+                  title: "Kirim Masukan & Saran", 
+                  subtitle: "Bantu kami mengembangkan SIPEKA", 
+                  color: Colors.green, 
+                  onTap: () => _showFeedbackDialog(context),
+                ),
+                const Divider(height: 1),
+                _buildListTile(
+                  context: context, 
+                  icon: Icons.info_outline_rounded, 
+                  title: "Tentang Aplikasi", 
+                  subtitle: "Informasi versi, lisensi & pengembang", 
+                  color: Colors.indigo, 
+                  onTap: () => _showAboutAppDialog(context),
+                ),
+                const Divider(height: 1),
+                _buildListTile(
+                  context: context, 
+                  icon: Icons.star_outline_rounded, 
+                  title: "Beri Rating", 
+                  subtitle: "Dukung kami di Play Store", 
+                  color: Colors.amber, 
+                  onTap: () => _showRatingToast(context),
+                ),
               ],
             ),
           ),
@@ -516,11 +653,15 @@ class SettingsScreen extends StatelessWidget {
                   await prefs.setString('app_pin', hashedPin);
                   await AuthService.saveSecurityQuestion(selectedQuestion, answerController.text);
                   
-                  Navigator.pop(ctx);
-                  SipekaNotification.showSuccess(context, "Keamanan diperbarui!");
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  if (context.mounted) {
+                    SipekaNotification.showSuccess(context, "Keamanan diperbarui!");
+                  }
                   onComplete(true);
                 } else {
-                  SipekaNotification.showWarning(context, "Lengkapi PIN (6 digit) dan Jawaban!");
+                  if (context.mounted) {
+                    SipekaNotification.showWarning(context, "Lengkapi PIN (6 digit) dan Jawaban!");
+                  }
                 }
               },
               child: const Text("SIMPAN", style: TextStyle(color: Colors.white)),
@@ -532,12 +673,14 @@ class SettingsScreen extends StatelessWidget {
   }
 
   void _showManageShortcutsDialog(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFFE9E9E9),
+      backgroundColor: isDark ? Theme.of(context).cardColor : const Color(0xFFE9E9E9),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
       builder: (ctx) {
+        final isDarkLocal = Theme.of(ctx).brightness == Brightness.dark;
         return Consumer<QuickActionProvider>(
           builder: (context, provider, child) {
             final currencyFormat = NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0);
@@ -546,12 +689,13 @@ class SettingsScreen extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text("Kelola Jalan Pintas", style: GoogleFonts.nunito(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text("Kelola Jalan Pintas", style: GoogleFonts.nunito(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color)),
                   const SizedBox(height: 15),
                   if (provider.actions.isEmpty)
                     Padding(padding: const EdgeInsets.symmetric(vertical: 20), child: Text("Belum ada pintasan", style: GoogleFonts.nunito(color: Colors.grey)))
                   else
                     ...provider.actions.map((action) => Card(
+                          color: isDarkLocal ? Colors.white.withValues(alpha: 0.05) : Colors.white,
                           margin: const EdgeInsets.only(bottom: 10),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                           child: ListTile(
@@ -590,10 +734,12 @@ class SettingsScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Hapus?"),
+        title: Text("Hapus Pintasan?", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color)),
+        content: Text("Apakah Anda yakin ingin menghapus jalan pintas ini?", style: GoogleFonts.nunito(color: Theme.of(context).textTheme.bodyMedium?.color)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("BATAL")),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text("BATAL", style: GoogleFonts.nunito(color: Colors.grey))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: startBlue),
             onPressed: () { 
@@ -601,7 +747,7 @@ class SettingsScreen extends StatelessWidget {
               Navigator.pop(ctx); 
               SipekaNotification.showWarning(context, "Pintasan dihapus");
             }, 
-            child: const Text("HAPUS", style: TextStyle(color: Colors.white))
+            child: Text("HAPUS", style: GoogleFonts.nunito(color: Colors.white, fontWeight: FontWeight.bold))
           ),
         ],
       ),
@@ -620,18 +766,31 @@ class SettingsScreen extends StatelessWidget {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: Theme.of(context).cardColor,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text(existingAction == null ? "Pintasan Baru" : "Edit Pintasan", style: GoogleFonts.nunito(fontWeight: FontWeight.bold)),
+          title: Text(existingAction == null ? "Pintasan Baru" : "Edit Pintasan", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color)),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(controller: nameController, decoration: const InputDecoration(labelText: "Nama (Contoh: Parkir)")),
+                TextField(
+                  controller: nameController, 
+                  style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+                  decoration: InputDecoration(
+                    labelText: "Nama (Contoh: Parkir)",
+                    labelStyle: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color),
+                  ),
+                ),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<String>(
+                  dropdownColor: Theme.of(context).cardColor,
+                  style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
                   initialValue: selectedCategory,
-                  hint: const Text("Pilih Kategori"),
-                  items: categories.map((cat) => DropdownMenuItem(value: cat, child: Text(cat))).toList(),
+                  hint: Text("Pilih Kategori", style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color)),
+                  items: categories.map((cat) => DropdownMenuItem(
+                    value: cat, 
+                    child: Text(cat, style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color))
+                  )).toList(),
                   onChanged: (val) => setDialogState(() => selectedCategory = val),
                   decoration: const InputDecoration(border: UnderlineInputBorder()),
                 ),
@@ -640,7 +799,12 @@ class SettingsScreen extends StatelessWidget {
                   controller: amountController, 
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
-                  decoration: const InputDecoration(labelText: "Nominal (Rp)", prefixText: "Rp "),
+                  style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+                  decoration: InputDecoration(
+                    labelText: "Nominal (Rp)", 
+                    prefixText: "Rp ",
+                    labelStyle: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color),
+                  ),
                 ),
               ],
             ),
@@ -710,9 +874,20 @@ class SettingsScreen extends StatelessWidget {
       final path = "${directory.path}/${fileName}_${type.toLowerCase()}_${DateTime.now().millisecondsSinceEpoch}.csv";
       final file = File(path);
       await file.writeAsString(csvData);
-      await Share.shareXFiles([XFile(path)], text: 'Laporan Keuangan SIPEKA ($type)');
-      SipekaNotification.showSuccess(context, "Berhasil mengekspor data $type!");
-    } catch (e) { SipekaNotification.showWarning(context, "Gagal ekspor: $e"); }
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(path)],
+          text: 'Laporan Keuangan SIPEKA ($type)',
+        ),
+      );
+      if (context.mounted) {
+        SipekaNotification.showSuccess(context, "Berhasil mengekspor data $type!");
+      }
+    } catch (e) {
+      if (context.mounted) {
+        SipekaNotification.showWarning(context, "Gagal ekspor: $e");
+      }
+    }
   }
 
   void _showExportOptions(BuildContext context) {
@@ -894,41 +1069,57 @@ class SettingsScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text("Konfirmasi Hapus Data", style: GoogleFonts.nunito(fontWeight: FontWeight.bold)),
+        title: Text("Konfirmasi Hapus Data", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text("Tindakan ini permanen. Ketik 'HAPUS' di bawah untuk melanjutkan:"),
+            Text("Tindakan ini permanen. Ketik 'HAPUS' di bawah untuk melanjutkan:", style: GoogleFonts.nunito(color: Theme.of(context).textTheme.bodyMedium?.color)),
             const SizedBox(height: 15),
             TextField(
               controller: confirmController,
-              decoration: const InputDecoration(
+              style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+              decoration: InputDecoration(
                 hintText: "Ketik HAPUS",
-                border: OutlineInputBorder(),
+                hintStyle: const TextStyle(color: Colors.grey),
+                border: const OutlineInputBorder(),
+                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Theme.of(context).dividerColor)),
               ),
               textAlign: TextAlign.center,
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("BATAL")),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text("BATAL", style: GoogleFonts.nunito(color: Colors.grey))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
               if (confirmController.text == "HAPUS") {
                 Navigator.pop(ctx);
                 
+                // Simpan semua provider sebelum await (hindari async gap context warning)
+                final txProvider = Provider.of<TransactionProvider>(context, listen: false);
+                final budgetProvider = Provider.of<BudgetProvider>(context, listen: false);
+                final debtProvider = Provider.of<DebtProvider>(context, listen: false);
+                final wishlistProvider = Provider.of<WishlistProvider>(context, listen: false);
+                final quickActionProvider = Provider.of<QuickActionProvider>(context, listen: false);
+                final walletProvider = Provider.of<WalletProvider>(context, listen: false);
+                final billProvider = Provider.of<BillProvider>(context, listen: false);
+
                 await DatabaseHelper.instance.clearAllTables();
                 final prefs = await SharedPreferences.getInstance();
-                await prefs.clear(); 
+                await prefs.clear();
+                await quickActionProvider.clearAll();
                 
                 if (context.mounted) {
-                  Provider.of<TransactionProvider>(context, listen: false).clearAllData();
-                  Provider.of<BudgetProvider>(context, listen: false).clearAllData();
-                  Provider.of<DebtProvider>(context, listen: false).clearAllData();
-                  Provider.of<WishlistProvider>(context, listen: false).clearAllData();
+                  txProvider.clearAllData();
+                  budgetProvider.clearAllData();
+                  debtProvider.clearAllData();
+                  wishlistProvider.clearAllData();
+                  await walletProvider.clearAllData();
+                  await billProvider.clearAllData();
+                  await walletProvider.fetchAndSetWallets();
                   
                   SipekaNotification.showSuccess(context, "Semua data telah dihapus!");
                   Navigator.of(context).popUntil((route) => route.isFirst);
@@ -937,7 +1128,7 @@ class SettingsScreen extends StatelessWidget {
                 SipekaNotification.showWarning(context, "Kata konfirmasi salah.");
               }
             },
-            child: const Text("HAPUS SEKARANG", style: TextStyle(color: Colors.white)),
+            child: Text("HAPUS SEKARANG", style: GoogleFonts.nunito(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -948,6 +1139,7 @@ class SettingsScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
@@ -963,7 +1155,7 @@ class SettingsScreen extends StatelessWidget {
             Expanded(
               child: Text(
                 "Sinkronisasi Cloud", 
-                style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 16)
+                style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).textTheme.bodyLarge?.color)
               ),
             ),
           ],
@@ -996,7 +1188,7 @@ class SettingsScreen extends StatelessWidget {
               label: Text("Cadangkan ke Cloud (Backup)", style: GoogleFonts.nunito(fontWeight: FontWeight.bold)),
               onPressed: () async {
                 Navigator.pop(ctx);
-                _runSyncProcess(context, isBackup: true);
+                _confirmBackupDialog(context);
               },
             ),
             const SizedBox(height: 10),
@@ -1028,15 +1220,49 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
+  void _confirmBackupDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text("Konfirmasi Cadangkan Data", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color)),
+        content: Text(
+          "Peringatan: Tindakan ini akan mengunggah data lokal saat ini dari handphone Anda ke server cloud SIPEKA dan menimpa cadangan lama jika ada.\n\nApakah Anda yakin ingin mencadangkan data sekarang?",
+          style: GoogleFonts.nunito(fontSize: 13, color: Theme.of(context).textTheme.bodyMedium?.color),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text("Batal", style: GoogleFonts.nunito(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryBlue,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _runSyncProcess(context, isBackup: true);
+            },
+            child: Text("Cadangkan Sekarang", style: GoogleFonts.nunito(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _confirmRestoreDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text("Konfirmasi Pemulihan Data", style: GoogleFonts.nunito(fontWeight: FontWeight.bold)),
+        title: Text("Konfirmasi Pemulihan Data", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color)),
         content: Text(
           "Peringatan: Seluruh data transaksi lokal saat ini di handphone ini akan dihapus dan digantikan dengan data cadangan dari server cloud SIPEKA. Tindakan ini tidak dapat dibatalkan.\n\nApakah Anda yakin ingin melanjutkan?",
-          style: GoogleFonts.nunito(fontSize: 13),
+          style: GoogleFonts.nunito(fontSize: 13, color: Theme.of(context).textTheme.bodyMedium?.color),
         ),
         actions: [
           TextButton(
@@ -1061,6 +1287,13 @@ class SettingsScreen extends StatelessWidget {
   }
 
   void _runSyncProcess(BuildContext context, {required bool isBackup}) async {
+    final transactionProvider = Provider.of<TransactionProvider>(context, listen: false);
+    final budgetProvider = Provider.of<BudgetProvider>(context, listen: false);
+    final debtProvider = Provider.of<DebtProvider>(context, listen: false);
+    final wishlistProvider = Provider.of<WishlistProvider>(context, listen: false);
+    final walletProvider = Provider.of<WalletProvider>(context, listen: false);
+    final billProvider = Provider.of<BillProvider>(context, listen: false);
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1089,11 +1322,12 @@ class SettingsScreen extends StatelessWidget {
         await SyncService().restoreAllData();
         
         // Refresh Provider lokal agar UI terupdate instan
-        if (!context.mounted) return;
-        await Provider.of<TransactionProvider>(context, listen: false).fetchAndSetTransactions();
-        await Provider.of<BudgetProvider>(context, listen: false).fetchAndSetBudgets();
-        await Provider.of<DebtProvider>(context, listen: false).fetchAndSetDebts();
-        await Provider.of<WishlistProvider>(context, listen: false).fetchAndSetWishlist();
+        await transactionProvider.fetchAndSetTransactions();
+        await budgetProvider.fetchAndSetBudgets();
+        await debtProvider.fetchAndSetDebts();
+        await wishlistProvider.fetchAndSetWishlist();
+        await walletProvider.fetchAndSetWallets();
+        await billProvider.fetchBills();
 
         if (!context.mounted) return;
         Navigator.pop(context); // Tutup loading dialog
@@ -1178,5 +1412,212 @@ class SettingsScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  void _showHelpCenterDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text("Pusat Bantuan & FAQ", style: GoogleFonts.nunito(fontWeight: FontWeight.bold)),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              _buildFAQItem(
+                context,
+                "Apakah SIPEKA bisa digunakan secara offline?",
+                "Ya! SIPEKA dirancang offline-first. Seluruh data transaksi, wishlist, dompet, dan tagihan disimpan secara lokal di memori HP Anda. Internet hanya digunakan saat Anda melakukan sinkronisasi awan atau menggunakan asisten AI.",
+              ),
+              const Divider(),
+              _buildFAQItem(
+                context,
+                "Bagaimana cara kerja Dompet Bersama?",
+                "Anda dapat mengaktifkan fitur Dompet Bersama pada salah satu dompet di menu 'Kelola Dompet & Rekening'. Aplikasi akan menghasilkan kode undangan unik 6 digit. Pasangan atau keluarga Anda cukup menekan tombol 'Gabung Dompet' dan memasukkan kode tersebut untuk sinkronisasi transaksi secara real-time.",
+              ),
+              const Divider(),
+              _buildFAQItem(
+                context,
+                "Bagaimana cara mencatat transaksi dengan Suara?",
+                "Ketuk tombol mikrofon biru di Dashboard utama, lalu katakan transaksi Anda dengan bahasa alami (contoh: 'Beli nasi goreng dua puluh ribu rupiah'). Asisten Gemini AI akan membaca ucapan Anda dan mengisi form pencatatan secara otomatis.",
+              ),
+              const Divider(),
+              _buildFAQItem(
+                context,
+                "Apakah pemindaian foto struk (OCR) butuh kuota?",
+                "Deteksi huruf dan teks dari foto struk belanja dilakukan secara lokal tanpa kuota data. Namun, jika ada internet dan API Gemini aktif, AI akan membantu menyaring nominal total secara cerdas dan otomatis. Jika offline, sistem akan menggunakan pencocokan pola lokal (Regex) sebagai cadangan gratis.",
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text("Tutup", style: GoogleFonts.nunito(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFAQItem(BuildContext context, String question, String answer) {
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        title: Text(
+          question,
+          style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color),
+        ),
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8.0, top: 4.0),
+            child: Text(
+              answer,
+              style: GoogleFonts.nunito(fontSize: 12, color: Colors.grey[600], height: 1.4),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showFeedbackDialog(BuildContext context) {
+    final feedbackController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text("Kirim Masukan & Saran", style: GoogleFonts.nunito(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Masukan Anda sangat berharga bagi kami untuk membuat SIPEKA menjadi lebih baik.",
+              style: GoogleFonts.nunito(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: feedbackController,
+              maxLines: 4,
+              style: GoogleFonts.nunito(fontSize: 14),
+              decoration: InputDecoration(
+                hintText: "Ketik saran atau keluhan Anda di sini...",
+                hintStyle: GoogleFonts.nunito(color: Colors.grey, fontSize: 13),
+                filled: true,
+                fillColor: Theme.of(context).brightness == Brightness.dark ? Colors.white10 : Colors.grey.shade100,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text("Batal", style: GoogleFonts.nunito(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF007AFF),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () async {
+              final text = feedbackController.text.trim();
+              if (text.isNotEmpty) {
+                Navigator.pop(ctx);
+                try {
+                  await AuthService().sendFeedback(text);
+                  if (context.mounted) {
+                    SipekaNotification.showSuccess(context, "Terima kasih! Umpan balik Anda telah terkirim.");
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    SipekaNotification.showWarning(context, "Gagal mengirim masukan. Silakan periksa koneksi internet Anda.");
+                  }
+                }
+              } else {
+                SipekaNotification.showWarning(context, "Mohon tuliskan masukan Anda terlebih dahulu.");
+              }
+            },
+            child: Text("Kirim", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAboutAppDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF007AFF), Color(0xFF00479E)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF007AFF).withValues(alpha: 0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  )
+                ],
+              ),
+              child: const Icon(Icons.account_balance_wallet_rounded, size: 40, color: Colors.white),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              "SIPEKA",
+              style: GoogleFonts.nunito(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+            Text(
+              "Sistem Pencatatan Keuangan",
+              style: GoogleFonts.nunito(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              "Versi 1.0.0 (Stabil)",
+              style: GoogleFonts.nunito(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF007AFF)),
+            ),
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 10),
+            Text(
+              "SIPEKA adalah aplikasi pencatatan keuangan modern yang menggabungkan kemudahan pencatatan lokal terenkripsi, sinkronisasi cloud real-time (Dompet Bersama), serta kecerdasan buatan (Gemini AI) untuk voice recognition dan OCR scan struk.",
+              textAlign: TextAlign.center,
+              style: GoogleFonts.nunito(fontSize: 12, height: 1.4),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text("Tutup", style: GoogleFonts.nunito(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRatingToast(BuildContext context) {
+    SipekaNotification.showSuccess(context, "Terima kasih atas penilaian bintang 5 Anda!");
   }
 }

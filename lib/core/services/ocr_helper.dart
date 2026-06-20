@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:sipeka/core/services/ai_service.dart';
 
 class OCRHelper {
     static Future<double?> extractTotal(String imagePath) async {
@@ -18,14 +20,30 @@ class OCRHelper {
     try {
       // Proses ini yang memakan RAM paling besar
       final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
+      String fullText = recognizedText.text;
 
+      // Coba panggil Gemini AI jika kunci dikonfigurasi
+      final apiKey = dotenv.env['GEMINI_API_KEY'];
+      if (apiKey != null && apiKey.trim().isNotEmpty) {
+        try {
+          final aiService = AiService();
+          final aiAmount = await aiService.parseOcrTextToAmount(fullText);
+          if (aiAmount != null && aiAmount > 0) {
+            print("OCR SIPEKA: Berhasil mengekstrak nominal menggunakan Gemini AI: Rp $aiAmount");
+            return aiAmount;
+          }
+        } catch (aiErr) {
+          print("OCR SIPEKA: Gagal ekstraksi via Gemini AI, menggunakan fallback Regex. Error: $aiErr");
+        }
+      }
+
+      // Fallback: Menggunakan Regex lokal
       double? maxAmount;
-      // Pakai karakter pemisah baris agar Regex tidak bingung
-      String fullText = recognizedText.text.toUpperCase();
+      String fullTextUpper = fullText.toUpperCase();
       
       // Regex Pertahankan milikmu, sudah oke
       RegExp totalRegex = RegExp(r"(TOTAL|BAYAR|JUMLAH|DUE|AMOUNT)[\s\w]*[:=]*[\s]*([\d\.,]{3,})");
-      Iterable<Match> matches = totalRegex.allMatches(fullText);
+      Iterable<Match> matches = totalRegex.allMatches(fullTextUpper);
       List<double> foundAmounts = [];
 
       if (matches.isNotEmpty) {

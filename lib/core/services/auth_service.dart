@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sipeka/core/utils/security_helper.dart';
+import 'package:sipeka/core/services/shared_wallet_sync_service.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -94,8 +95,30 @@ class AuthService {
   }
 
   Future<void> signOut() async {
+    SharedWalletSyncService.instance.stopAllListeners();
     await _googleSignIn.signOut();
     await _auth.signOut();
     debugPrint("Logout berhasil");
+  }
+
+  Future<void> sendFeedback(String feedbackText) async {
+    try {
+      final user = _auth.currentUser;
+      final prefs = await SharedPreferences.getInstance();
+      final localName = prefs.getString('user_name') ?? 'Pengguna Lokal';
+
+      await _firestore.collection('feedbacks').add({
+        'userId': user?.uid ?? 'guest',
+        'email': user?.email ?? 'guest@sipeka.local',
+        'name': user?.displayName ?? localName,
+        'feedback': feedbackText,
+        'timestamp': FieldValue.serverTimestamp(),
+        'platform': kIsWeb ? 'Web' : (defaultTargetPlatform == TargetPlatform.android ? 'Android' : 'iOS'),
+      });
+      debugPrint("Umpan balik berhasil diunggah ke Firestore.");
+    } catch (e) {
+      debugPrint("Gagal mengunggah umpan balik ke Firestore: $e");
+      rethrow;
+    }
   }
 }

@@ -12,12 +12,18 @@ import 'package:sipeka/features/wishlist/presentation/controllers/wishlist_provi
 import 'package:sipeka/features/quick_action/presentation/controllers/quick_action_provider.dart';
 import 'package:sipeka/features/debt/presentation/controllers/debt_provider.dart';
 import 'package:sipeka/core/theme/theme_provider.dart';
+import 'package:sipeka/features/wallet/presentation/controllers/wallet_provider.dart';
+import 'package:sipeka/features/bill/presentation/controllers/bill_provider.dart';
 
 // Import Utils & Screens
 import 'package:sipeka/features/auth/presentation/screens/splash_screen.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:sipeka/core/services/notification_service.dart';
 import 'package:sipeka/core/services/local_kb_service.dart';
+import 'package:sipeka/core/services/app_security_manager.dart';
+import 'package:sipeka/core/widgets/privacy_blur_wrapper.dart';
+
+import 'package:home_widget/home_widget.dart';
 
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -27,6 +33,7 @@ import 'firebase_options.dart';
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  AppSecurityManager.instance.init();
   try {
     await dotenv.load(fileName: ".env");
     debugPrint(".env Loaded Successfully!");
@@ -47,6 +54,9 @@ void main() async {
   await initializeDateFormatting('id_ID', null); 
   await NotificationService.init();
   await LocalKbService.init();
+  
+  // Set App Group ID untuk iOS Widget communication
+  await HomeWidget.setAppGroupId('group.com.example.sipeka');
 
   // --- TAMBAHKAN INI: Minta izin Notifikasi & Exact Alarm ---
   // Tanpa ini, scheduleReminder di bawah akan gagal di Android 13/14
@@ -106,6 +116,8 @@ class SIPEKAApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => CategoryProvider()..loadCategories()),
         // Cari baris ini di main.dart dan ubah:
         ChangeNotifierProvider(create: (_) => QuickActionProvider()..loadActions()),
+        ChangeNotifierProvider(create: (_) => WalletProvider()..fetchAndSetWallets()),
+        ChangeNotifierProvider(create: (ctx) => BillProvider()..processRecurringBills(ctx)),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
@@ -122,6 +134,8 @@ class SIPEKAApp extends StatelessWidget {
 
             // 3. Gunakan getter darkTheme yang ada di ThemeProvider.dart
             darkTheme: themeProvider.darkTheme,
+            
+            builder: (context, child) => PrivacyBlurWrapper(child: child!),
             
             home: const SplashScreen(),
           );
