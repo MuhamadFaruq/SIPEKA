@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import 'package:sipeka/core/services/shared_wallet_sync_service.dart';
 import 'package:sipeka/features/transaction/presentation/controllers/transaction_provider.dart';
 import 'package:sipeka/features/wallet/presentation/controllers/wallet_provider.dart';
+import 'package:sipeka/features/insight/presentation/controllers/financial_health_provider.dart';
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
@@ -74,6 +75,10 @@ class _MainNavigationState extends State<MainNavigation> {
       context,
       SmoothPageRoute(child: const InputTransactionScreen()),
     );
+
+    if (mounted) {
+      Provider.of<FinancialHealthProvider>(context, listen: false).calculateHealthScore();
+    }
 
     if (result != null && result is int) {
       _pageController.animateToPage(

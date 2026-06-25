@@ -31,6 +31,7 @@ import 'package:sipeka/features/wallet/presentation/controllers/wallet_provider.
 import 'package:sipeka/features/wallet/presentation/screens/manage_wallets_screen.dart';
 import 'package:sipeka/features/bill/presentation/controllers/bill_provider.dart';
 import 'package:sipeka/features/bill/presentation/screens/manage_bills_screen.dart';
+import 'package:sipeka/features/transaction/presentation/screens/notification_tracker_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -419,6 +420,18 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 const Divider(height: 1),
                 _buildNotificationTile(context), 
+                const Divider(height: 1),
+                _buildListTile(
+                  context: context,
+                  icon: Icons.notifications_active_rounded,
+                  title: "Pencatatan Otomatis (AI Bank Sync)",
+                  subtitle: "Catat otomatis dari SMS & Notifikasi e-wallet",
+                  color: Colors.redAccent,
+                  onTap: () => Navigator.push(
+                    context,
+                    SmoothPageRoute(child: const NotificationTrackerScreen()),
+                  ),
+                ),
                 const Divider(height: 1),
                 _buildListTile(context: context, icon: Icons.cloud_upload_outlined, title: "Ekspor Data", subtitle: "Simpan data ke format CSV", color: Colors.blue, onTap: () => _showExportOptions(context)),
                 const Divider(height: 1),

@@ -28,7 +28,10 @@ import 'package:sipeka/features/wallet/domain/entities/wallet_entity.dart';
 import 'all_transactions_screen.dart';
 import 'ai_chat_screen.dart';
 import 'input_transaction_screen.dart';
+import 'split_bill_screen.dart';
 import 'package:sipeka/features/settings/presentation/screens/settings_screen.dart';
+import 'package:percent_indicator/percent_indicator.dart';
+import 'package:sipeka/features/insight/presentation/controllers/financial_health_provider.dart';
 
 import 'package:sipeka/features/transaction/presentation/widgets/transaction_pie_chart.dart';
 import 'package:sipeka/core/theme/app_theme.dart';
@@ -457,7 +460,11 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor, 
       body: RefreshIndicator( 
-        onRefresh: () async => await provider.loadTransactions(),
+        onRefresh: () async {
+          await provider.loadTransactions();
+          if (!context.mounted) return;
+          await Provider.of<FinancialHealthProvider>(context, listen: false).calculateHealthScore();
+        },
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
@@ -481,11 +488,167 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
+            SliverToBoxAdapter(child: _buildFinancialHealthSection(context)),
             SliverToBoxAdapter(child: _buildInsightsSection(context)),
+            SliverToBoxAdapter(child: _buildAiFeaturesSection(context)),
             SliverToBoxAdapter(child: _buildQuickActionsSection(context)),
             SliverToBoxAdapter(child: _buildLatestTransactionsSection(context, sortedTransactions)),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildFinancialHealthSection(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final healthProvider = Provider.of<FinancialHealthProvider>(context);
+    
+    Color scoreColor;
+    if (healthProvider.score >= 80) {
+      scoreColor = AppColors.incomeGreen;
+    } else if (healthProvider.score >= 60) {
+      scoreColor = Colors.orange;
+    } else {
+      scoreColor = AppColors.expenseRed;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 15, left: 20, right: 20, bottom: 5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text("Kesehatan Keuangan", style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.bold)),
+              IconButton(
+                icon: const Icon(Icons.refresh_rounded, size: 18, color: Colors.grey),
+                onPressed: () => healthProvider.calculateHealthScore(),
+                tooltip: "Pembaruan Analisis",
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.0 : 0.02),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                )
+              ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircularPercentIndicator(
+                  radius: 40.0,
+                  lineWidth: 8.0,
+                  percent: healthProvider.score / 100,
+                  animation: true,
+                  animateFromLastPercent: true,
+                  circularStrokeCap: CircularStrokeCap.round,
+                  center: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        healthProvider.score.toStringAsFixed(0),
+                        style: GoogleFonts.nunito(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: scoreColor,
+                        ),
+                      ),
+                      Text(
+                        "Skor",
+                        style: GoogleFonts.nunito(
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
+                  progressColor: scoreColor,
+                  backgroundColor: Colors.grey.withValues(alpha: 0.15),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: scoreColor.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              healthProvider.status,
+                              style: GoogleFonts.nunito(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: scoreColor,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(
+                            Icons.psychology_rounded,
+                            size: 16,
+                            color: Colors.purple.withValues(alpha: 0.8),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            "SIPEKA AI",
+                            style: GoogleFonts.nunito(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.purple,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      if (healthProvider.isLoading)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 4),
+                            const LinearProgressIndicator(
+                              minHeight: 2,
+                              color: AppColors.primaryBlue,
+                              backgroundColor: Colors.transparent,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              "SIPEKA AI sedang membaca laporan bulanan...",
+                              style: GoogleFonts.nunito(fontSize: 11, color: Colors.grey, fontStyle: FontStyle.italic),
+                            ),
+                          ],
+                        )
+                      else
+                        Text(
+                          healthProvider.aiAdvice,
+                          style: GoogleFonts.nunito(
+                            fontSize: 11.5,
+                            color: isDark ? Colors.white70 : Colors.black87,
+                            height: 1.4,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -515,6 +678,121 @@ class _HomeScreenState extends State<HomeScreen> {
                 Expanded(flex: 2, child: SizedBox(height: 130, child: TransactionPieChart())),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAiFeaturesSection(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.only(top: 15, left: 20, right: 20, bottom: 5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text("Fitur Keuangan AI", style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              // Card 1: Split Bill AI
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    SmoothPageRoute(child: const SplitBillScreen()),
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).cardColor,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: isDark ? 0.0 : 0.02),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        )
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryBlue.withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.people_alt_rounded, color: AppColors.primaryBlue, size: 20),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          "Split Bill AI",
+                          style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          "Patungan & scan struk belanja pintar",
+                          style: GoogleFonts.nunito(fontSize: 10, color: Colors.grey),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Card 2: AI Konsultan
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    SmoothPageRoute(child: const AiChatScreen()),
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).cardColor,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: isDark ? 0.0 : 0.02),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        )
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.purple.withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.psychology_rounded, color: Colors.purple, size: 20),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          "AI Konsultan",
+                          style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          "Tanya jawab solusi keuangan pribadi",
+                          style: GoogleFonts.nunito(fontSize: 10, color: Colors.grey),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -970,6 +1248,14 @@ class CollapsingHeaderDelegate extends SliverPersistentHeaderDelegate {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              if (wallet.isShared) ...[
+                const SizedBox(width: 4),
+                const Icon(
+                  Icons.people_rounded,
+                  color: AppColors.primaryBlue,
+                  size: 13,
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 4),

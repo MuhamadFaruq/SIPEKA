@@ -1,7 +1,7 @@
 import 'package:another_flushbar/flushbar.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:sipeka/main.dart';
+import 'package:sipeka/core/navigation/navigation_helper.dart';
 
 class SipekaNotification {
   static void showSuccess(BuildContext context, String message) {

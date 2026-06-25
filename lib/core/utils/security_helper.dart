@@ -7,7 +7,7 @@ import 'package:flutter/foundation.dart';
 /// Menggunakan SHA-256 untuk hashing sehingga PIN tidak pernah disimpan plaintext.
 class SecurityHelper {
   // --- Konstanta Lockout ---
-  static const int maxAttempts = 5;
+  static const int maxAttempts = 3;
   static const int lockoutDurationSeconds = 30;
   static const String _prefAttemptsKey = 'pin_attempts';
   static const String _prefLockoutKey = 'pin_lockout_until';

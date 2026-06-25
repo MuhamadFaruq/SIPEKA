@@ -488,4 +488,36 @@ class DatabaseHelper {
     final db = await database;
     return await db.delete('bills');
   }
+
+  // --- STATISTIK UNTUK FINANCIAL HEALTH INDEX ---
+  Future<double> getTotalIncomeCurrentMonth() async {
+    final db = await database;
+    final String currentMonthStr = DateTime.now().toIso8601String().substring(0, 7);
+    final result = await db.rawQuery(
+      "SELECT SUM(amount) as total FROM transactions WHERE type = 'Income' AND date LIKE ?",
+      ['$currentMonthStr%'],
+    );
+    final val = result.first['total'];
+    return val != null ? (val as num).toDouble() : 0.0;
+  }
+
+  Future<double> getTotalExpenseCurrentMonth() async {
+    final db = await database;
+    final String currentMonthStr = DateTime.now().toIso8601String().substring(0, 7);
+    final result = await db.rawQuery(
+      "SELECT SUM(amount) as total FROM transactions WHERE type = 'Expense' AND date LIKE ?",
+      ['$currentMonthStr%'],
+    );
+    final val = result.first['total'];
+    return val != null ? (val as num).toDouble() : 0.0;
+  }
+
+  Future<double> getTotalUnpaidDebt() async {
+    final db = await database;
+    final result = await db.rawQuery(
+      "SELECT SUM(amount) as total FROM debts WHERE is_paid = 0",
+    );
+    final val = result.first['total'];
+    return val != null ? (val as num).toDouble() : 0.0;
+  }
 }

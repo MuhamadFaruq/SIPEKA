@@ -14,9 +14,11 @@ import 'package:sipeka/features/debt/presentation/controllers/debt_provider.dart
 import 'package:sipeka/core/theme/theme_provider.dart';
 import 'package:sipeka/features/wallet/presentation/controllers/wallet_provider.dart';
 import 'package:sipeka/features/bill/presentation/controllers/bill_provider.dart';
+import 'package:sipeka/features/insight/presentation/controllers/financial_health_provider.dart';
 
 // Import Utils & Screens
 import 'package:sipeka/features/auth/presentation/screens/splash_screen.dart';
+import 'package:sipeka/features/transaction/presentation/screens/notification_tracker_screen.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:sipeka/core/services/notification_service.dart';
 import 'package:sipeka/core/services/local_kb_service.dart';
@@ -29,8 +31,7 @@ import 'package:home_widget/home_widget.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+import 'package:sipeka/core/navigation/navigation_helper.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   AppSecurityManager.instance.init();
@@ -53,6 +54,13 @@ void main() async {
   // 1. Inisialisasi data dasar
   await initializeDateFormatting('id_ID', null); 
   await NotificationService.init();
+  NotificationService.onNotificationTapped = (payload) {
+    navigatorKey.currentState?.push(
+      MaterialPageRoute(
+        builder: (context) => NotificationTrackerScreen(initialPayload: payload),
+      ),
+    );
+  };
   await LocalKbService.init();
   
   // Set App Group ID untuk iOS Widget communication
@@ -118,6 +126,7 @@ class SIPEKAApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => QuickActionProvider()..loadActions()),
         ChangeNotifierProvider(create: (_) => WalletProvider()..fetchAndSetWallets()),
         ChangeNotifierProvider(create: (ctx) => BillProvider()..processRecurringBills(ctx)),
+        ChangeNotifierProvider(create: (_) => FinancialHealthProvider()..calculateHealthScore()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {

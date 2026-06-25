@@ -7,6 +7,8 @@ import 'package:sipeka/core/utils/formatters.dart';
 import 'package:sipeka/core/services/notifications.dart'; 
 import 'package:sipeka/features/wishlist/presentation/controllers/wishlist_provider.dart';
 import 'package:sipeka/features/wishlist/domain/entities/wishlist_entity.dart';
+import 'package:sipeka/core/theme/app_theme.dart';
+import 'financial_simulator_screen.dart';
 
 class WishlistScreen extends StatefulWidget {
   const WishlistScreen({super.key});
@@ -275,11 +277,26 @@ class _WishlistScreenState extends State<WishlistScreen> {
                     gradient: LinearGradient(colors: [startBlue, endBlue]),
                     borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text("Wishlist Tabungan", style: GoogleFonts.nunito(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                      Text("Pelan tapi pasti, impian jadi nyata!", style: GoogleFonts.nunito(color: Colors.white70, fontSize: 14)),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("Wishlist Tabungan", style: GoogleFonts.nunito(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                            Text("Pelan tapi pasti, impian jadi nyata!", style: GoogleFonts.nunito(color: Colors.white70, fontSize: 14)),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.psychology_alt_rounded, color: Colors.white, size: 28),
+                        tooltip: "AI Financial Planner",
+                        onPressed: () => Navigator.push(
+                          context,
+                          SmoothPageRoute(child: const FinancialSimulatorScreen()),
+                        ),
+                      ),
                     ],
                   ),
                 ),

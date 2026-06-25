@@ -135,6 +135,44 @@ Aturan:
     }
   }
 
+  Future<List<Map<String, dynamic>>?> parseReceiptToItems(String rawOcrText) async {
+    validateApiKey();
+    try {
+      final prompt = '''
+Anda adalah AI Kasir yang bertugas merapikan struk belanja. Ekstrak data struk hasil OCR berikut menjadi format JSON Array terstruktur.
+Teks OCR:
+"$rawOcrText"
+
+Aturan:
+1. Kembalikan HANYA JSON Array berisi object dengan key: "name" (String, nama makanan/barang singkat) dan "price" (Number, harga bersih setelah diskon jika ada).
+2. Jangan masukkan baris subtotal, pajak, biaya layanan, atau diskon umum ke dalam array. Fokus hanya pada item-item belanja utama yang dibeli.
+3. Jangan berikan penjelasan, kata pengantar, atau pembungkus markdown seperti ```json. HANYA kembalikan JSON Array yang valid.
+''';
+
+      final content = [Content.text(prompt)];
+      final response = await _model.generateContent(content).timeout(const Duration(seconds: 15));
+      
+      if (response.text != null) {
+        String jsonText = response.text!.trim();
+        if (jsonText.startsWith('```json')) {
+          jsonText = jsonText.substring(7);
+        } else if (jsonText.startsWith('```')) {
+          jsonText = jsonText.substring(3);
+        }
+        if (jsonText.endsWith('```')) {
+          jsonText = jsonText.substring(0, jsonText.length - 3);
+        }
+        
+        final decoded = jsonDecode(jsonText.trim()) as List<dynamic>;
+        return decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      return null;
+    } catch (e) {
+      print('Error parsing receipt to items via Gemini: $e');
+      return null;
+    }
+  }
+
   Future<double?> parseOcrTextToAmount(String rawText) async {
     validateApiKey();
     try {
@@ -197,6 +235,42 @@ Gunakan bahasa Indonesia yang natural dan ramah.
     }
   }
 
+  Future<String> simulateFinancialGoal({
+    required String goalTitle,
+    required double targetAmount,
+    required int durationMonths,
+    required double currentMonthlyIncome,
+    required double currentMonthlyExpense,
+  }) async {
+    validateApiKey();
+    try {
+      final prompt = '''
+Anda adalah AI Financial Planner Indonesia yang sangat ahli dan logis.
+Pengguna memiliki impian finansial berikut:
+- Nama Impian: "$goalTitle"
+- Target Nominal: Rp${targetAmount.toStringAsFixed(0)}
+- Jangka Waktu: $durationMonths bulan
+- Pendapatan Bulanan Saat Ini: Rp${currentMonthlyIncome.toStringAsFixed(0)}
+- Pengeluaran Bulanan Saat Ini: Rp${currentMonthlyExpense.toStringAsFixed(0)}
+
+Berdasarkan data keuangan riil di atas, hitunglah kelayakan impian tersebut secara matematis dan berikan rekomendasi aksi konkret.
+Struktur output saran Anda harus berisi:
+1. **Analisis Kelayakan**: Apakah realistis dicapai dengan sisa pendapatan bulanan saat ini (Pemasukan - Pengeluaran)? Berapa nominal yang wajib ditabung per bulan (Target / Durasi)?
+2. **Rekomendasi Pemangkasan Anggaran**: Sebutkan 2-3 contoh pos pengeluaran yang sebaiknya dipotong atau dihemat beserta estimasi nominalnya.
+3. **Rencana Aksi SIPEKA**: Sarankan pengguna untuk membuat Wishlist baru dan mengubah Budget bulanan mereka di aplikasi.
+
+Jawab dengan gaya penulisan yang ramah, profesional, ringkas, dan memotivasi menggunakan Bahasa Indonesia yang natural. Maksimal 3 paragraf pendek. Gunakan format markdown tebal (*) untuk poin-poin penting.
+''';
+
+      final content = [Content.text(prompt)];
+      final response = await _model.generateContent(content).timeout(const Duration(seconds: 15));
+      return response.text?.trim() ?? "Gagal merumuskan simulasi. Harap periksa koneksi internet Anda.";
+    } catch (e) {
+      print('Error in financial simulation: $e');
+      return "Terjadi kesalahan saat memproses simulasi Anda. Silakan coba beberapa saat lagi.";
+    }
+  }
+
   ChatSession startFinancialChat(String contextData) {
     validateApiKey();
     final chatModel = GenerativeModel(
@@ -212,5 +286,60 @@ Gunakan bahasa Indonesia yang kasual, santai, dan mudah dimengerti. Singkat, pad
 '''),
     );
     return chatModel.startChat();
+  }
+
+  Future<Map<String, dynamic>?> parseTransactionNotification({
+    required String notificationText,
+    required List<String> availableCategories,
+    required List<String> availableWallets,
+  }) async {
+    validateApiKey();
+    try {
+      final prompt = '''
+Anda adalah AI Financial Tracker yang bertugas menganalisis teks notifikasi dari aplikasi bank atau e-wallet (seperti GoPay, OVO, ShopeePay, Dana, BCA, Mandiri, dll.) dan mengekstrak rincian transaksi keuangan secara terstruktur ke dalam format JSON.
+
+Teks Notifikasi:
+"$notificationText"
+
+Daftar Kategori yang Tersedia:
+${availableCategories.join(', ')}
+
+Daftar Dompet/Akun Keuangan yang Tersedia:
+${availableWallets.join(', ')}
+
+Aturan Analisis:
+1. Tentukan apakah ini notifikasi transaksi keuangan yang valid (pengeluaran uang, belanja, transfer keluar, transfer masuk, cashout, top up, atau penerimaan uang). Jika BUKAN notifikasi transaksi keuangan, kembalikan key "isValid" bernilai false.
+2. Ekstrak informasi berikut ke dalam JSON object:
+   - "isValid": boolean (true jika notifikasi transaksi keuangan yang valid, false jika tidak)
+   - "type": String ("EXPENSE" untuk pengeluaran, "INCOME" untuk pemasukan, atau "UNKNOWN")
+   - "amount": Number (nominal transaksi, tanpa pemisah ribuan)
+   - "merchant": String (nama merchant, toko, aplikasi, penerima transfer, atau pengirim transfer, singkat dan padat)
+   - "category": String (kategori yang paling cocok dari daftar Kategori yang Tersedia. Jika tidak ada yang cocok, pilih kategori terdekat seperti Belanja, Makan, Transportasi, atau Lainnya)
+   - "wallet": String (dompet yang paling cocok dari daftar Dompet yang Tersedia. Bandingkan secara pintar, misal jika teks menyebut "GoPay" atau "GOPAY" cocokkan dengan "GoPay", "BCA" cocokkan dengan "BCA", dll. Jika tidak ada yang cocok, gunakan "Tunai" atau "Dompet Utama")
+   - "description": String (ringkasan penjelasan transaksi singkat, misal: "Pembayaran GrabFood" atau "Transfer masuk dari Budi")
+3. HANYA kembalikan JSON object yang valid. Jangan tambahkan markdown seperti ```json atau teks penjelasan apa pun.
+''';
+
+      final content = [Content.text(prompt)];
+      final response = await _model.generateContent(content).timeout(const Duration(seconds: 15));
+      if (response.text != null) {
+        String jsonText = response.text!.trim();
+        if (jsonText.startsWith('```json')) {
+          jsonText = jsonText.substring(7);
+        } else if (jsonText.startsWith('```')) {
+          jsonText = jsonText.substring(3);
+        }
+        if (jsonText.endsWith('```')) {
+          jsonText = jsonText.substring(0, jsonText.length - 3);
+        }
+        
+        final decoded = jsonDecode(jsonText.trim());
+        return decoded as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      print('Error parsing notification text with AI: $e');
+      return null;
+    }
   }
 }

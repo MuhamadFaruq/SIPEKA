@@ -82,6 +82,26 @@ class OCRHelper {
     }
   }
 
+  static Future<String?> extractFullText(String imagePath) async {
+    final file = File(imagePath);
+    if (!await file.exists()) return null;
+
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    final inputImage = InputImage.fromFilePath(imagePath);
+    final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
+    
+    try {
+      final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
+      return recognizedText.text;
+    } catch (e) {
+      print("Error OCR Full Text SIPEKA: $e");
+      return null;
+    } finally {
+      textRecognizer.close();
+    }
+  }
+
   // Helper untuk membersihkan format angka Indonesia (10.000 atau 10,000)
   static double? _parseStringAmount(String text) {
     String clean = text.replaceAll(RegExp(r'[^0-9\.,]'), '');

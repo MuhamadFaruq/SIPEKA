@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz;
@@ -10,6 +11,8 @@ import 'package:sipeka/features/bill/domain/entities/bill_entity.dart';
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _notificationsPlugin =
       FlutterLocalNotificationsPlugin();
+
+  static void Function(String)? onNotificationTapped;
 
   static Future<void> init() async {
     tz.initializeTimeZones();
@@ -45,6 +48,15 @@ class NotificationService {
 
     await _notificationsPlugin.initialize(
       settings: settings,
+      onDidReceiveNotificationResponse: (NotificationResponse response) {
+        final payload = response.payload;
+        if (payload != null && payload.isNotEmpty) {
+          debugPrint("Notification tapped with payload: $payload");
+          if (onNotificationTapped != null) {
+            onNotificationTapped!(payload);
+          }
+        }
+      },
     );
   }
 
@@ -148,5 +160,36 @@ class NotificationService {
     } catch (e) {
       debugPrint("Gagal membatalkan pengingat: $e");
     }
+  }
+
+  static Future<void> showImmediateNotification({
+    required int id,
+    required String title,
+    required String body,
+    String? payload,
+  }) async {
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'transaction_tracker',
+      'Transaction Tracker',
+      channelDescription: 'Notifikasi pendeteksi transaksi dari AI',
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+    );
+    const NotificationDetails details = NotificationDetails(
+      android: androidDetails,
+      iOS: DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
+    );
+    await _notificationsPlugin.show(
+      id: id,
+      title: title,
+      body: body,
+      notificationDetails: details,
+      payload: payload,
+    );
   }
 }
