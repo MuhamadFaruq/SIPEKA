@@ -28,15 +28,14 @@ import 'package:sipeka/features/wallet/domain/entities/wallet_entity.dart';
 import 'all_transactions_screen.dart';
 import 'ai_chat_screen.dart';
 import 'input_transaction_screen.dart';
-import 'split_bill_screen.dart';
 import 'package:sipeka/features/settings/presentation/screens/settings_screen.dart';
-import 'package:percent_indicator/percent_indicator.dart';
 import 'package:sipeka/features/insight/presentation/controllers/financial_health_provider.dart';
 
-import 'package:sipeka/features/transaction/presentation/widgets/transaction_pie_chart.dart';
+import 'package:sipeka/features/transaction/presentation/widgets/financial_insight_tab_card.dart';
 import 'package:sipeka/core/theme/app_theme.dart';
 import 'dart:async';
 import 'package:sipeka/core/services/widget_service.dart';
+
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -52,6 +51,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _voiceText = "Tekan & tahan tombol mic untuk bicara...";
 
   StreamSubscription<Uri?>? _widgetClickedSubscription;
+  bool _showBalance = true;
 
   @override
   void initState() {
@@ -454,345 +454,360 @@ class _HomeScreenState extends State<HomeScreen> {
     } else {
       financialStatus = "Uangmu Aman, Masih Bisa Jajan";
     }
-    Color statusColor = totalBalance < 500000 ? AppColors.expenseRed : AppColors.incomeGreen;
-    final double statusBarHeight = MediaQuery.of(context).padding.top;
+    final Color statusColor = totalBalance < 500000 ? AppColors.expenseRed : AppColors.incomeGreen;
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor, 
-      body: RefreshIndicator( 
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: RefreshIndicator(
         onRefresh: () async {
           await provider.loadTransactions();
           if (!context.mounted) return;
           await Provider.of<FinancialHealthProvider>(context, listen: false).calculateHealthScore();
         },
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            SliverPersistentHeader(
-              pinned: true,
-              delegate: CollapsingHeaderDelegate(
-                statusBarHeight: statusBarHeight,
-                wallets: wallets,
-                txProvider: provider,
-                userName: themeProvider.userName,
-                statusText: financialStatus,
-                statusColor: statusColor,
-                onVoicePressed: _showVoiceInputDialog,
-                onSettingsPressed: () => Navigator.push(
-                  context, 
-                  SmoothPageRoute(child: const SettingsScreen())
-                ),
-                onAiChatPressed: () => Navigator.push(
-                  context, 
-                  SmoothPageRoute(child: const AiChatScreen())
-                ),
+        child: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              // ── Fixed Header ─────────────────────────────────────────
+              _buildCompactHeader(
+                context,
+                provider,
+                wallets,
+                totalBalance,
+                financialStatus,
+                statusColor,
+                themeProvider.userName,
               ),
-            ),
-            SliverToBoxAdapter(child: _buildFinancialHealthSection(context)),
-            SliverToBoxAdapter(child: _buildInsightsSection(context)),
-            SliverToBoxAdapter(child: _buildAiFeaturesSection(context)),
-            SliverToBoxAdapter(child: _buildQuickActionsSection(context)),
-            SliverToBoxAdapter(child: _buildLatestTransactionsSection(context, sortedTransactions)),
-          ],
+              // ── Financial Insight Tab Card ────────────────────────────
+              const FinancialInsightTabCard(),
+              // ── Quick Actions ─────────────────────────────────────────
+              _buildQuickActionsSection(context),
+              // ── Transaksi Terbaru (fills remaining space) ─────────────
+              Expanded(
+                child: _buildLatestTransactionsSection(context, sortedTransactions),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildFinancialHealthSection(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final healthProvider = Provider.of<FinancialHealthProvider>(context);
-    
-    Color scoreColor;
-    if (healthProvider.score >= 80) {
-      scoreColor = AppColors.incomeGreen;
-    } else if (healthProvider.score >= 60) {
-      scoreColor = Colors.orange;
-    } else {
-      scoreColor = AppColors.expenseRed;
-    }
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 15, left: 20, right: 20, bottom: 5),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text("Kesehatan Keuangan", style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.bold)),
-              IconButton(
-                icon: const Icon(Icons.refresh_rounded, size: 18, color: Colors.grey),
-                onPressed: () => healthProvider.calculateHealthScore(),
-                tooltip: "Pembaruan Analisis",
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              borderRadius: BorderRadius.circular(22),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.0 : 0.02),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                )
-              ],
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircularPercentIndicator(
-                  radius: 40.0,
-                  lineWidth: 8.0,
-                  percent: healthProvider.score / 100,
-                  animation: true,
-                  animateFromLastPercent: true,
-                  circularStrokeCap: CircularStrokeCap.round,
-                  center: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        healthProvider.score.toStringAsFixed(0),
-                        style: GoogleFonts.nunito(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          color: scoreColor,
-                        ),
-                      ),
-                      Text(
-                        "Skor",
-                        style: GoogleFonts.nunito(
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
-                  ),
-                  progressColor: scoreColor,
-                  backgroundColor: Colors.grey.withValues(alpha: 0.15),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: scoreColor.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              healthProvider.status,
-                              style: GoogleFonts.nunito(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: scoreColor,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Icon(
-                            Icons.psychology_rounded,
-                            size: 16,
-                            color: Colors.purple.withValues(alpha: 0.8),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            "SIPEKA AI",
-                            style: GoogleFonts.nunito(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.purple,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      if (healthProvider.isLoading)
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 4),
-                            const LinearProgressIndicator(
-                              minHeight: 2,
-                              color: AppColors.primaryBlue,
-                              backgroundColor: Colors.transparent,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              "SIPEKA AI sedang membaca laporan bulanan...",
-                              style: GoogleFonts.nunito(fontSize: 11, color: Colors.grey, fontStyle: FontStyle.italic),
-                            ),
-                          ],
-                        )
-                      else
-                        Text(
-                          healthProvider.aiAdvice,
-                          style: GoogleFonts.nunito(
-                            fontSize: 11.5,
-                            color: isDark ? Colors.white70 : Colors.black87,
-                            height: 1.4,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+  Widget _buildCompactHeader(
+    BuildContext context,
+    TransactionProvider txProvider,
+    List<WalletEntity> wallets,
+    double totalBalance,
+    String statusText,
+    Color statusColor,
+    String userName,
+  ) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: AppColors.primaryGradient,
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(30),
+          bottomRight: Radius.circular(30),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 10,
+            offset: Offset(0, 4),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildInsightsSection(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 15, left: 20, right: 20, bottom: 5),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text("Analisis Pengeluaran", style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor, 
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.0 : 0.02), 
-                  blurRadius: 10
-                )
-              ],
-            ),
-            child: const Row(
-              children: [
-                Expanded(flex: 2, child: SizedBox(height: 130, child: TransactionPieChart())),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAiFeaturesSection(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Padding(
-      padding: const EdgeInsets.only(top: 15, left: 20, right: 20, bottom: 5),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text("Fitur Keuangan AI", style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 10),
+          // Row 1: Greeting + Action Buttons (Sleek Glassmorphic Circles)
           Row(
             children: [
-              // Card 1: Split Bill AI
               Expanded(
-                child: GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    SmoothPageRoute(child: const SplitBillScreen()),
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).cardColor,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: isDark ? 0.0 : 0.02),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        )
-                      ],
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Hallo $userName",
+                      style: GoogleFonts.nunito(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        letterSpacing: 0.3,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    const SizedBox(height: 4),
+                    Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(8),
+                          width: 8,
+                          height: 8,
                           decoration: BoxDecoration(
-                            color: AppColors.primaryBlue.withValues(alpha: 0.1),
+                            color: statusColor,
                             shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: statusColor.withOpacity(0.6),
+                                blurRadius: 6,
+                                spreadRadius: 1,
+                              )
+                            ]
                           ),
-                          child: const Icon(Icons.people_alt_rounded, color: AppColors.primaryBlue, size: 20),
                         ),
-                        const SizedBox(height: 12),
-                        Text(
-                          "Split Bill AI",
-                          style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 13),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          "Patungan & scan struk belanja pintar",
-                          style: GoogleFonts.nunito(fontSize: 10, color: Colors.grey),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            statusText,
+                            style: GoogleFonts.nunito(
+                              fontSize: 12, 
+                              color: Colors.white.withOpacity(0.85),
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ],
                     ),
-                  ),
+                  ],
                 ),
               ),
               const SizedBox(width: 12),
-              // Card 2: AI Konsultan
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    SmoothPageRoute(child: const AiChatScreen()),
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).cardColor,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: isDark ? 0.0 : 0.02),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        )
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.purple.withValues(alpha: 0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.psychology_rounded, color: Colors.purple, size: 20),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          "AI Konsultan",
-                          style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 13),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          "Tanya jawab solusi keuangan pribadi",
-                          style: GoogleFonts.nunito(fontSize: 10, color: Colors.grey),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              // Glassmorphic Action Buttons
+              _buildHeaderActionButton(
+                icon: Icons.smart_toy_outlined,
+                tooltip: "AI Chatbot",
+                onTap: () => Navigator.push(context, SmoothPageRoute(child: const AiChatScreen())),
+              ),
+              const SizedBox(width: 8),
+              _buildHeaderActionButton(
+                icon: Icons.mic_none_rounded,
+                tooltip: "Voice Input",
+                onTap: _showVoiceInputDialog,
+              ),
+              const SizedBox(width: 8),
+              _buildHeaderActionButton(
+                icon: Icons.settings_outlined,
+                tooltip: "Settings",
+                onTap: () => Navigator.push(context, SmoothPageRoute(child: const SettingsScreen())),
               ),
             ],
+          ),
+          const SizedBox(height: 12),
+          // Total Saldo Section
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "TOTAL SALDO",
+                    style: GoogleFonts.nunito(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white.withOpacity(0.6),
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      AnimatedCrossFade(
+                        duration: const Duration(milliseconds: 200),
+                        crossFadeState: _showBalance ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+                        firstChild: Text(
+                          NumberFormat.currency(
+                            locale: 'id_ID',
+                            symbol: 'Rp ',
+                            decimalDigits: 0,
+                          ).format(totalBalance),
+                          style: GoogleFonts.nunito(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        secondChild: Text(
+                          "Rp ••••••••",
+                          style: GoogleFonts.nunito(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      GestureDetector(
+                        onTap: () => setState(() => _showBalance = !_showBalance),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            _showBalance ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                            color: Colors.white.withOpacity(0.9),
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Row 2: Wallet cards
+          if (wallets.isNotEmpty)
+            SizedBox(
+              height: 56,
+              child: wallets.length == 1
+                  ? _buildWalletCard(context, wallets[0],
+                      wallets[0].initialBalance + txProvider.getWalletBalance(wallets[0].name),
+                      customWidth: double.infinity)
+                  : wallets.length == 2
+                      ? Row(children: [
+                          Expanded(child: _buildWalletCard(context, wallets[0],
+                              wallets[0].initialBalance + txProvider.getWalletBalance(wallets[0].name),
+                              customWidth: double.infinity)),
+                          const SizedBox(width: 10),
+                          Expanded(child: _buildWalletCard(context, wallets[1],
+                              wallets[1].initialBalance + txProvider.getWalletBalance(wallets[1].name),
+                              customWidth: double.infinity)),
+                        ])
+                      : ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          physics: const BouncingScrollPhysics(),
+                          itemCount: wallets.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 10),
+                          itemBuilder: (context, index) {
+                            final w = wallets[index];
+                            return _buildWalletCard(context, w,
+                                w.initialBalance + txProvider.getWalletBalance(w.name));
+                          },
+                        ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeaderActionButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.12),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: Colors.white.withOpacity(0.18),
+              width: 1,
+            ),
+          ),
+          child: Icon(
+            icon,
+            color: Colors.white,
+            size: 18,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWalletCard(BuildContext context, WalletEntity wallet, double balance, {double? customWidth}) {
+    return Container(
+      width: customWidth ?? 145,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.2),
+          width: 1.2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  IconData(wallet.iconCode, fontFamily: 'MaterialIcons'),
+                  color: Colors.white,
+                  size: 11,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  wallet.name,
+                  style: GoogleFonts.nunito(
+                    fontSize: 11, 
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (wallet.isShared) ...[
+                const SizedBox(width: 4),
+                const Icon(
+                  Icons.people_rounded,
+                  color: Colors.white70,
+                  size: 11,
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 4),
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 200),
+            crossFadeState: _showBalance ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+            firstChild: Text(
+              NumberFormat.currency(
+                locale: 'id_ID',
+                symbol: 'Rp ',
+                decimalDigits: 0,
+              ).format(balance),
+              style: GoogleFonts.nunito(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+            secondChild: Text(
+              "Rp ••••",
+              style: GoogleFonts.nunito(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w800,
+                color: Colors.white.withOpacity(0.8),
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),
@@ -801,33 +816,60 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildQuickActionsSection(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 5, left: 20, right: 20, bottom: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 1),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text("Jalan Pintas", style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.bold)),
+              Text(
+                "Jalan Pintas",
+                style: GoogleFonts.nunito(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87,
+                ),
+              ),
               IconButton(
                 onPressed: _showAddShortcutDialog, 
-                icon: const Icon(Icons.add_circle_outline, color: AppColors.primaryBlue, size: 20)
+                icon: const Icon(Icons.add_circle_outline, color: AppColors.primaryBlue, size: 20),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
               )
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 1),
           Consumer<QuickActionProvider>(
             builder: (context, actionProvider, child) {
               if (actionProvider.actions.isEmpty) {
-                return Center(child: Text("Belum ada pintasan", style: GoogleFonts.nunito(color: Colors.grey, fontSize: 12)));
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).cardColor,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.grey.withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.08 : 0.04),
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      "Belum ada pintasan. Tekan '+' untuk menambah.",
+                      style: GoogleFonts.nunito(color: Colors.grey, fontSize: 11.5),
+                    ),
+                  ),
+                );
               }
-              return SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                child: Row(
+              return SizedBox(
+                height: 34,
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
                   children: actionProvider.actions.map((action) {
                     return Padding(
-                      padding: const EdgeInsets.only(right: 25), 
+                      padding: const EdgeInsets.only(right: 10), 
                       child: _buildShortcutIcon(context, action.icon, action.label, action.category, action.amount, action.id),
                     );
                   }).toList(),
@@ -842,31 +884,50 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildLatestTransactionsSection(BuildContext context, List<Transaction> sortedTransactions) {
     return Padding(
-      padding: const EdgeInsets.only(top: 5, left: 20, right: 20, bottom: 20),
+      padding: const EdgeInsets.only(top: 4, left: 20, right: 20, bottom: 6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text("Transaksi Terbaru", style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.bold)),
+              Text(
+                "Transaksi Terbaru",
+                style: GoogleFonts.nunito(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87,
+                ),
+              ),
               GestureDetector(
                 onTap: () => Navigator.push(context, SmoothPageRoute(child: const AllTransactionsScreen())),
-                child: Text("Lihat Semua >", style: GoogleFonts.nunito(fontSize: 12, color: AppColors.primaryBlue)),
+                child: Text(
+                  "Lihat Semua >",
+                  style: GoogleFonts.nunito(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primaryBlue,
+                  ),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          sortedTransactions.isEmpty 
-          ? Center(child: Text("Belum ada data", style: GoogleFonts.nunito(color: Colors.grey)))
-          : ListView.builder(
-              shrinkWrap: true,
-              padding: EdgeInsets.zero,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: sortedTransactions.length > 5 ? 5 : sortedTransactions.length,
-              itemBuilder: (ctx, index) => _buildTransactionItem(context, sortedTransactions[index]),
-            ),
-          const SizedBox(height: 30), 
+          const SizedBox(height: 6),
+          Expanded(
+            child: sortedTransactions.isEmpty
+                ? Center(
+                    child: Text(
+                      "Belum ada data transaksi",
+                      style: GoogleFonts.nunito(color: Colors.grey, fontSize: 13),
+                    ),
+                  )
+                : ListView.builder(
+                    padding: EdgeInsets.zero,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: sortedTransactions.length > 3 ? 3 : sortedTransactions.length,
+                    itemBuilder: (ctx, index) => _buildTransactionItem(context, sortedTransactions[index]),
+                  ),
+          ),
         ],
       ),
     );
@@ -876,48 +937,75 @@ class _HomeScreenState extends State<HomeScreen> {
     bool isExpense = tx.type == TransactionType.expense;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 6),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor, 
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.grey.withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.08 : 0.04),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.2 : 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: AppColors.primaryBlue.withOpacity(0.1), 
-                shape: BoxShape.circle
+                color: (isExpense ? AppColors.expenseRed : AppColors.incomeGreen).withOpacity(0.08), 
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(AppIcons.getIcon(tx.category), size: 20, color: AppColors.primaryBlue),
+              child: Icon(
+                AppIcons.getIcon(tx.category), 
+                size: 18, 
+                color: isExpense ? AppColors.expenseRed : AppColors.incomeGreen
+              ),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(tx.title, style: GoogleFonts.nunito(
-                    fontWeight: FontWeight.bold, fontSize: 14,
-                    color: Theme.of(context).textTheme.bodyLarge?.color
-                  )),
-                  Text("${tx.category} • ${DateFormat('HH:mm').format(tx.date)}", 
-                    style: GoogleFonts.nunito(color: Colors.grey, fontSize: 11)
+                  Text(
+                    tx.title, 
+                    style: GoogleFonts.nunito(
+                      fontWeight: FontWeight.bold, 
+                      fontSize: 13.5,
+                      color: Theme.of(context).textTheme.bodyLarge?.color,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    "${tx.category} • ${DateFormat('HH:mm').format(tx.date)}", 
+                    style: GoogleFonts.nunito(
+                      color: Colors.grey, 
+                      fontSize: 10.5,
+                    ),
                   ),
                 ],
               ),
             ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  "${isExpense ? '-' : '+'}${NumberFormat.currency(locale: 'id_ID', symbol: '', decimalDigits: 0).format(tx.amount)}",
+                  "${isExpense ? '-' : '+'}${NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(tx.amount)}",
                   style: GoogleFonts.nunito(
-                    fontWeight: FontWeight.bold, fontSize: 15,
+                    fontWeight: FontWeight.w800, 
+                    fontSize: 14,
                     color: isExpense ? AppColors.expenseRed : AppColors.incomeGreen,
                   ),
                 ),
+                const SizedBox(height: 4),
                 Builder(
                   builder: (context) {
                     final walletProv = Provider.of<WalletProvider>(context, listen: false);
@@ -925,15 +1013,29 @@ class _HomeScreenState extends State<HomeScreen> {
                       (w) => w.name.toLowerCase() == tx.wallet.toLowerCase(),
                       orElse: () => const WalletEntity(id: '', name: '', initialBalance: 0, iconCode: 0, colorHex: '#9E9E9E'),
                     );
-                    return Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(tx.wallet, style: GoogleFonts.nunito(color: Colors.grey, fontSize: 9)),
-                        if (wallet.isShared) ...[
-                          const SizedBox(width: 3),
-                          const Icon(Icons.cloud_done_rounded, size: 10, color: Colors.blue),
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            tx.wallet, 
+                            style: GoogleFonts.nunito(
+                              color: Colors.grey[600], 
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          if (wallet.isShared) ...[
+                            const SizedBox(width: 3),
+                            const Icon(Icons.people_rounded, size: 9, color: AppColors.primaryBlue),
+                          ],
                         ],
-                      ],
+                      ),
                     );
                   }
                 ),
@@ -944,7 +1046,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-
 
   Widget _buildShortcutIcon(BuildContext context, IconData icon, String label, String category, double amount, String id) {
     return GestureDetector(
@@ -960,325 +1061,46 @@ class _HomeScreenState extends State<HomeScreen> {
         Provider.of<QuickActionProvider>(context, listen: false).removeAction(id);
         SipekaNotification.showWarning(context, "Jalan pintas $label dihapus");
       },
-      child: Column(
-        mainAxisSize: MainAxisSize.min, 
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor, 
-              shape: BoxShape.circle, 
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.0 : 0.05), 
-                  blurRadius: 5
-                )
-              ]
-            ),
-            child: Icon(icon, color: AppColors.primaryBlue, size: 22),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 1),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor, 
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: AppColors.primaryBlue.withOpacity(0.15),
+            width: 1,
           ),
-          const SizedBox(height: 6),
-          Text(label, style: GoogleFonts.nunito(fontSize: 11, fontWeight: FontWeight.bold), textAlign: TextAlign.center)
-        ],
-      ),
-    );
-  }
-}
-
-class CollapsingHeaderDelegate extends SliverPersistentHeaderDelegate {
-  final double statusBarHeight;
-  final List<WalletEntity> wallets;
-  final TransactionProvider txProvider;
-  final String userName;
-  final String statusText;
-  final Color statusColor;
-  final VoidCallback onVoicePressed;
-  final VoidCallback onSettingsPressed;
-  final VoidCallback onAiChatPressed;
-
-  CollapsingHeaderDelegate({
-    required this.statusBarHeight,
-    required this.wallets,
-    required this.txProvider,
-    required this.userName,
-    required this.statusText,
-    required this.statusColor,
-    required this.onVoicePressed,
-    required this.onSettingsPressed,
-    required this.onAiChatPressed,
-  });
-
-  @override
-  double get minExtent => statusBarHeight + 70.0; // Collapsed height
-
-  @override
-  double get maxExtent => statusBarHeight + 210.0; // Expanded height
-
-  @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    // Calculate collapse ratio (0.0 fully expanded, 1.0 fully collapsed)
-    final double delta = maxExtent - minExtent;
-    final double percent = (shrinkOffset / (delta > 0 ? delta : 1.0)).clamp(0.0, 1.0);
-
-    // Opacities for smooth transition
-    final double expandedOpacity = (1.0 - percent * 2.0).clamp(0.0, 1.0);
-    final double collapsedOpacity = (percent - 0.5).clamp(0.0, 1.0) * 2.0;
-
-    // Corner radius of the header collapses from 30 to 0
-    final double borderRadius = (30.0 * (1.0 - percent)).clamp(0.0, 30.0);
-
-    final double totalBalance = txProvider.getTotalBalance(wallets);
-
-    return Container(
-      decoration: BoxDecoration(
-        gradient: AppColors.primaryGradient,
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(borderRadius),
-          bottomRight: Radius.circular(borderRadius),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primaryBlue.withOpacity(0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            )
+          ]
         ),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0),
-          child: Stack(
-            children: [
-              // Top row content (Greeting vs. Total Saldo + Icons)
-              Positioned(
-                top: 10,
-                left: 0,
-                right: 0,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Transitioning title
-                    Expanded(
-                      child: Stack(
-                        alignment: Alignment.centerLeft,
-                        children: [
-                          Opacity(
-                            opacity: expandedOpacity,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  "Hallo $userName",
-                                  style: GoogleFonts.nunito(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                Text(
-                                  "Duitmu Aman Kok",
-                                  style: GoogleFonts.nunito(
-                                    fontSize: 14,
-                                    color: Colors.white70,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Opacity(
-                            opacity: collapsedOpacity,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  "Total Saldo",
-                                  style: GoogleFonts.nunito(
-                                    fontSize: 12,
-                                    color: Colors.white70,
-                                  ),
-                                ),
-                                Text(
-                                  NumberFormat.currency(
-                                    locale: 'id_ID',
-                                    symbol: 'Rp ',
-                                    decimalDigits: 0,
-                                  ).format(totalBalance),
-                                  style: GoogleFonts.nunito(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Action Buttons (Mic, AI Chat & Settings)
-                    Row(
-                      children: [
-                        IconButton(
-                          onPressed: onAiChatPressed,
-                          icon: const Icon(Icons.smart_toy_outlined, color: Colors.white, size: 26),
-                          tooltip: "AI Chatbot",
-                        ),
-                        IconButton(
-                          onPressed: onVoicePressed,
-                          icon: const Icon(Icons.mic_none_rounded, color: Colors.white, size: 28),
-                        ),
-                        IconButton(
-                          onPressed: onSettingsPressed,
-                          icon: const Icon(Icons.settings_outlined, color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: AppColors.primaryBlue.withOpacity(0.1),
+                shape: BoxShape.circle,
               ),
-
-              // Expanded components (Status badge and balance cards)
-              if (expandedOpacity > 0)
-                Positioned(
-                  top: 70,
-                  left: 0,
-                  right: 0,
-                  child: Opacity(
-                    opacity: expandedOpacity,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: statusColor,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            statusText,
-                            style: GoogleFonts.nunito(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 15),
-                        if (wallets.isNotEmpty)
-                          SizedBox(
-                            height: 60,
-                            child: wallets.length == 1
-                                ? _buildWalletCard(
-                                    context,
-                                    wallets[0],
-                                    wallets[0].initialBalance +
-                                        txProvider.getWalletBalance(wallets[0].name),
-                                    customWidth: double.infinity,
-                                  )
-                                : wallets.length == 2
-                                    ? Row(
-                                        children: [
-                                          Expanded(
-                                            child: _buildWalletCard(
-                                              context,
-                                              wallets[0],
-                                              wallets[0].initialBalance +
-                                                  txProvider.getWalletBalance(wallets[0].name),
-                                              customWidth: double.infinity,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: _buildWalletCard(
-                                              context,
-                                              wallets[1],
-                                              wallets[1].initialBalance +
-                                                  txProvider.getWalletBalance(wallets[1].name),
-                                              customWidth: double.infinity,
-                                            ),
-                                          ),
-                                        ],
-                                      )
-                                    : ListView.separated(
-                                        scrollDirection: Axis.horizontal,
-                                        itemCount: wallets.length,
-                                        separatorBuilder: (_, __) => const SizedBox(width: 12),
-                                        itemBuilder: (context, index) {
-                                          final wallet = wallets[index];
-                                          final balance = wallet.initialBalance +
-                                              txProvider.getWalletBalance(wallet.name);
-                                          return _buildWalletCard(context, wallet, balance);
-                                        },
-                                      ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
-          ),
+              child: Icon(icon, color: AppColors.primaryBlue, size: 12),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label, 
+              style: GoogleFonts.nunito(
+                fontSize: 12, 
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87,
+              ),
+            ),
+          ],
         ),
       ),
     );
-  }
-
-  Widget _buildWalletCard(BuildContext context, WalletEntity wallet, double balance, {double? customWidth}) {
-    final walletColor = Color(int.parse(wallet.colorHex.replaceFirst('#', '0xFF')));
-    return Container(
-      width: customWidth ?? 140,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Row(
-            children: [
-              Icon(
-                IconData(wallet.iconCode, fontFamily: 'MaterialIcons'),
-                color: walletColor,
-                size: 16,
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  wallet.name,
-                  style: GoogleFonts.nunito(fontSize: 11, fontWeight: FontWeight.bold),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (wallet.isShared) ...[
-                const SizedBox(width: 4),
-                const Icon(
-                  Icons.people_rounded,
-                  color: AppColors.primaryBlue,
-                  size: 13,
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            NumberFormat.currency(
-              locale: 'id_ID',
-              symbol: 'Rp ',
-              decimalDigits: 0,
-            ).format(balance),
-            style: GoogleFonts.nunito(
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-              color: balance < 0 ? AppColors.expenseRed : Theme.of(context).textTheme.bodyLarge?.color,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  bool shouldRebuild(covariant CollapsingHeaderDelegate oldDelegate) {
-    return true;
   }
 }

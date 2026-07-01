@@ -94,11 +94,8 @@ class _MainNavigationState extends State<MainNavigation> {
     // --- VARIABEL TEMA ---
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
-    // Gunakan primaryBlue asli saat terang, atau warna primary dari theme saat gelap
-    final Color primaryBlue = const Color(0xFF2972FF);
-    
-    // Warna background BottomBar: Biru saat terang, CardColor (Gelap) saat malam
-    final Color navBarColor = isDark ? Theme.of(context).cardColor : primaryBlue;
+    // Warna background BottomBar: Selalu gunakan cardColor (Putih saat terang, abu-abu saat malam)
+    final Color navBarColor = Theme.of(context).cardColor;
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -112,51 +109,77 @@ class _MainNavigationState extends State<MainNavigation> {
         children: _screens,
       ),
 
-      // FAB Besar di Tengah
-      floatingActionButton: SizedBox(
-        height: 65,
-        width: 65,
+      // FAB Besar di Tengah dengan Gradient & Glow Shadow
+      floatingActionButton: Container(
+        height: 64,
+        width: 64,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const LinearGradient(
+            colors: [Color(0xFF007AFF), Color(0xFF005BC5)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF007AFF).withOpacity(0.35),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            )
+          ],
+        ),
         child: FloatingActionButton(
           onPressed: _onFabTapped,
-          // FAB tetap biru agar menonjol sebagai tombol utama
-          backgroundColor: primaryBlue,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          highlightElevation: 0,
           shape: const CircleBorder(),
-          elevation: isDark ? 0 : 4,
-          child: const Icon(Icons.add, size: 32, color: Colors.white),
+          child: const Icon(Icons.add, size: 30, color: Colors.white),
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
 
       // Navigasi Bawah
-      bottomNavigationBar: BottomAppBar(
-        padding: const EdgeInsets.symmetric(vertical: 0),
-        height: 65, 
-        notchMargin: 8,
-        shape: const CircularNotchedRectangle(),
-        // --- FIX: Warna background nav dinamis ---
-        color: navBarColor, 
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // Menu Kiri
-              Row(
-                children: [
-                  _buildNavItem(0, Icons.home, "Rumah"),
-                  const SizedBox(width: 15),
-                  _buildNavItem(1, Icons.bar_chart, "Grafik"),
-                ],
-              ),
-              // Menu Kanan
-              Row(
-                children: [
-                  _buildNavItem(2, Icons.pie_chart, "Anggaran"),
-                  const SizedBox(width: 15),
-                  _buildNavItem(3, Icons.favorite, "Wishlist"),
-                ],
-              ),
-            ],
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
+              blurRadius: 15,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: BottomAppBar(
+          padding: const EdgeInsets.symmetric(vertical: 0),
+          height: 65, 
+          notchMargin: 8,
+          shape: const CircularNotchedRectangle(),
+          color: navBarColor, 
+          elevation: 0,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Menu Kiri
+                Row(
+                  children: [
+                    _buildNavItem(0, Icons.home_rounded, "Rumah"),
+                    const SizedBox(width: 15),
+                    _buildNavItem(1, Icons.bar_chart_rounded, "Grafik"),
+                  ],
+                ),
+                // Menu Kanan
+                Row(
+                  children: [
+                    _buildNavItem(2, Icons.pie_chart_rounded, "Anggaran"),
+                    const SizedBox(width: 15),
+                    _buildNavItem(3, Icons.favorite_rounded, "Wishlist"),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -165,17 +188,10 @@ class _MainNavigationState extends State<MainNavigation> {
 
   Widget _buildNavItem(int index, IconData icon, String label) {
     final bool isSelected = _selectedIndex == index;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // --- FIX: Warna Ikon & Teks ---
-    // Di mode gelap: Putih saat dipilih, Abu-abu saat tidak.
-    // Di mode terang: Putih saat dipilih, Putih transparan saat tidak.
-    Color contentColor;
-    if (isDark) {
-      contentColor = isSelected ? const Color(0xFF2972FF) : Colors.grey;
-    } else {
-      contentColor = isSelected ? Colors.white : Colors.white.withValues(alpha: 0.5);
-    }
+    // --- WARNA IKON & TEKS MODERN ---
+    // Biru saat dipilih, Abu-abu saat tidak aktif untuk mode terang maupun gelap.
+    final Color contentColor = isSelected ? const Color(0xFF007AFF) : Colors.grey.withOpacity(0.8);
 
     return InkWell(
       onTap: () => _onItemTapped(index),
@@ -185,9 +201,7 @@ class _MainNavigationState extends State<MainNavigation> {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected
-              ? (isDark
-                  ? const Color(0xFF2972FF).withValues(alpha: 0.1)
-                  : Colors.white.withValues(alpha: 0.15))
+              ? const Color(0xFF007AFF).withOpacity(0.08)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
         ),
@@ -196,7 +210,7 @@ class _MainNavigationState extends State<MainNavigation> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             AnimatedScale(
-              scale: isSelected ? 1.18 : 1.0,
+              scale: isSelected ? 1.15 : 1.0,
               duration: const Duration(milliseconds: 250),
               curve: Curves.easeOutBack,
               child: Icon(
@@ -211,7 +225,7 @@ class _MainNavigationState extends State<MainNavigation> {
               style: GoogleFonts.nunito(
                 color: contentColor,
                 fontSize: 10,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
               ),
             ),
           ],
