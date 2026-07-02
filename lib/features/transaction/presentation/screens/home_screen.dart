@@ -831,11 +831,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87,
                 ),
               ),
-              IconButton(
-                onPressed: _showAddShortcutDialog, 
-                icon: const Icon(Icons.add_circle_outline, color: AppColors.primaryBlue, size: 20),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
+              GestureDetector(
+                onTap: _showAddShortcutDialog, 
+                behavior: HitTestBehavior.opaque,
+                child: const Padding(
+                  padding: EdgeInsets.all(4),
+                  child: Icon(Icons.add_circle_outline, color: AppColors.primaryBlue, size: 20),
+                ),
               )
             ],
           ),

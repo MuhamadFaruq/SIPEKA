@@ -144,7 +144,17 @@ class SIPEKAApp extends StatelessWidget {
             // 3. Gunakan getter darkTheme yang ada di ThemeProvider.dart
             darkTheme: themeProvider.darkTheme,
             
-            builder: (context, child) => PrivacyBlurWrapper(child: child!),
+            builder: (context, child) {
+              final mediaQueryData = MediaQuery.of(context);
+              // Clamp text scale to prevent layout overflow while keeping accessibility reasonable
+              final constrainedTextScale = mediaQueryData.textScaleFactor.clamp(0.85, 1.15);
+              return MediaQuery(
+                data: mediaQueryData.copyWith(
+                  textScaleFactor: constrainedTextScale,
+                ),
+                child: PrivacyBlurWrapper(child: child!),
+              );
+            },
             
             home: const SplashScreen(),
           );

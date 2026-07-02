@@ -4,6 +4,9 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:provider/provider.dart';
+import 'package:sipeka/features/wallet/presentation/controllers/wallet_provider.dart';
+import 'package:sipeka/features/transaction/presentation/controllers/transaction_provider.dart';
 import 'package:sipeka/features/transaction/domain/entities/transaction_entity.dart';
 import 'package:sipeka/features/transaction/domain/entities/transaction_type.dart';
 
@@ -17,9 +20,9 @@ class PdfReportHelper {
   static const List<PdfColor> chartColors = [
     PdfColor.fromInt(0xFF007AFF), // Blue
     PdfColor.fromInt(0xFFFF9500), // Orange
+    PdfColor.fromInt(0xFF4CD964), // Green
     PdfColor.fromInt(0xFF5856D6), // Purple
     PdfColor.fromInt(0xFFFF2D55), // Pink
-    PdfColor.fromInt(0xFF4CD964), // Green
     PdfColor.fromInt(0xFF5AC8FA), // Light Blue
     PdfColor.fromInt(0xFFFFCC00), // Yellow
     PdfColor.fromInt(0xFF8E8E93), // Grey
@@ -59,6 +62,31 @@ class PdfReportHelper {
       }
 
       double netBalance = totalIncome - totalExpense;
+
+      // Calculate total cumulative balance up to the end of the selected month
+      double totalBalance = 0.0;
+      try {
+        final walletProvider = Provider.of<WalletProvider>(context, listen: false);
+        final initialWalletsBalance = walletProvider.wallets.fold(0.0, (sum, w) => sum + w.initialBalance);
+        
+        final lastDayOfSelectedMonth = DateTime(selectedDate.year, selectedDate.month + 1, 0, 23, 59, 59, 999);
+        
+        double incomesUpToMonth = 0.0;
+        double expensesUpToMonth = 0.0;
+        
+        for (var tx in transactions) {
+          if (tx.date.isBefore(lastDayOfSelectedMonth) || tx.date.isAtSameMomentAs(lastDayOfSelectedMonth)) {
+            if (tx.type == TransactionType.income) {
+              incomesUpToMonth += tx.amount;
+            } else if (tx.type == TransactionType.expense) {
+              expensesUpToMonth += tx.amount;
+            }
+          }
+        }
+        totalBalance = initialWalletsBalance + incomesUpToMonth - expensesUpToMonth;
+      } catch (e) {
+        print("Gagal mengambil total saldo kumulatif: $e");
+      }
 
       // Sort categories by expense amount descending
       final sortedCategories = categoryExpenses.entries.toList()
@@ -161,7 +189,7 @@ class PdfReportHelper {
               child: pw.Row(
                 children: [
                   pw.Text(
-                    'Dicetak pada $timestamp • SIPEKA',
+                    'Dicetak pada $timestamp | SIPEKA',
                     style: pw.TextStyle(
                       font: fontRegular,
                       fontSize: 8,
@@ -199,49 +227,79 @@ class PdfReportHelper {
                   borderRadius: pw.BorderRadius.circular(8),
                 ),
                 child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
-                    pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text(
-                          'Pemilik Laporan:',
-                          style: pw.TextStyle(
-                            font: fontRegular,
-                            fontSize: 9,
-                            color: PdfColors.grey600,
+                    pw.Expanded(
+                      flex: 4,
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text(
+                            'Pemilik Laporan:',
+                            style: pw.TextStyle(
+                              font: fontRegular,
+                              fontSize: 9,
+                              color: PdfColors.grey600,
+                            ),
                           ),
-                        ),
-                        pw.Text(
-                          userName.isNotEmpty ? '$userName ($userEmail)' : userEmail,
-                          style: pw.TextStyle(
-                            font: fontBold,
-                            fontSize: 10,
-                            color: PdfColors.grey800,
+                          pw.Text(
+                            userName.isNotEmpty ? '$userName ($userEmail)' : userEmail,
+                            style: pw.TextStyle(
+                              font: fontBold,
+                              fontSize: 10,
+                              color: PdfColors.grey800,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                    pw.Spacer(),
-                    pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.end,
-                      children: [
-                        pw.Text(
-                          'Total Transaksi:',
-                          style: pw.TextStyle(
-                            font: fontRegular,
-                            fontSize: 9,
-                            color: PdfColors.grey600,
+                    pw.Expanded(
+                      flex: 2,
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.center,
+                        children: [
+                          pw.Text(
+                            'Total Transaksi:',
+                            style: pw.TextStyle(
+                              font: fontRegular,
+                              fontSize: 9,
+                              color: PdfColors.grey600,
+                            ),
                           ),
-                        ),
-                        pw.Text(
-                          '${monthlyTx.length} Transaksi',
-                          style: pw.TextStyle(
-                            font: fontBold,
-                            fontSize: 10,
-                            color: PdfColors.grey800,
+                          pw.Text(
+                            '${monthlyTx.length} Transaksi',
+                            style: pw.TextStyle(
+                              font: fontBold,
+                              fontSize: 10,
+                              color: PdfColors.grey800,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
+                    ),
+                    pw.Expanded(
+                      flex: 3,
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.end,
+                        children: [
+                          pw.Text(
+                            'Saldo Akhir Bulan:',
+                            style: pw.TextStyle(
+                              font: fontRegular,
+                              fontSize: 9,
+                              color: PdfColors.grey600,
+                            ),
+                          ),
+                          pw.Text(
+                            currencyFormatter.format(totalBalance),
+                            style: pw.TextStyle(
+                              font: fontBold,
+                              fontSize: 10,
+                              color: totalBalance >= 0 ? primaryBlue : expenseRed,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -269,7 +327,7 @@ class PdfReportHelper {
                   ),
                   pw.SizedBox(width: 12),
                   _buildSummaryCard(
-                    title: 'Sisa Saldo',
+                    title: 'Arus Kas Bersih',
                     value: currencyFormatter.format(netBalance),
                     accentColor: netBalance >= 0 ? primaryBlue : expenseRed,
                     bgColor: netBalance >= 0 

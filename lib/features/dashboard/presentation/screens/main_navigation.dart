@@ -139,46 +139,49 @@ class _MainNavigationState extends State<MainNavigation> {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
 
-      // Navigasi Bawah
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
-              blurRadius: 15,
-              offset: const Offset(0, -4),
-            ),
-          ],
-        ),
-        child: BottomAppBar(
-          padding: const EdgeInsets.symmetric(vertical: 0),
-          height: 65, 
-          notchMargin: 8,
-          shape: const CircularNotchedRectangle(),
-          color: navBarColor, 
-          elevation: 0,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // Menu Kiri
-                Row(
-                  children: [
-                    _buildNavItem(0, Icons.home_rounded, "Rumah"),
-                    const SizedBox(width: 15),
-                    _buildNavItem(1, Icons.bar_chart_rounded, "Grafik"),
-                  ],
-                ),
-                // Menu Kanan
-                Row(
-                  children: [
-                    _buildNavItem(2, Icons.pie_chart_rounded, "Anggaran"),
-                    const SizedBox(width: 15),
-                    _buildNavItem(3, Icons.favorite_rounded, "Wishlist"),
-                  ],
-                ),
-              ],
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          decoration: BoxDecoration(
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
+                blurRadius: 15,
+                offset: const Offset(0, -4),
+              ),
+            ],
+          ),
+          child: BottomAppBar(
+            clipBehavior: Clip.antiAlias,
+            padding: const EdgeInsets.symmetric(vertical: 0),
+            height: 65, 
+            notchMargin: 8,
+            shape: const CircularNotchedRectangle(),
+            color: navBarColor, 
+            elevation: 0,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Menu Kiri
+                  Row(
+                    children: [
+                      _buildNavItem(0, Icons.home_rounded, "Rumah"),
+                      const SizedBox(width: 15),
+                      _buildNavItem(1, Icons.bar_chart_rounded, "Grafik"),
+                    ],
+                  ),
+                  // Menu Kanan
+                  Row(
+                    children: [
+                      _buildNavItem(2, Icons.pie_chart_rounded, "Anggaran"),
+                      const SizedBox(width: 15),
+                      _buildNavItem(3, Icons.favorite_rounded, "Wishlist"),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
