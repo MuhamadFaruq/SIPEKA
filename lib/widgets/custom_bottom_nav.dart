@@ -64,7 +64,7 @@ class CustomBottomNav extends StatelessWidget {
           ),
           Text(
             label,
-            style: GoogleFonts.poppins(
+            style: GoogleFonts.nunito(
               fontSize: 10,
               fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
               color: isActive ? AppColors.primaryBlue : AppColors.neutralGrey,

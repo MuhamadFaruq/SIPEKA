@@ -111,7 +111,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   onPressed: _currentPage < _pages.length ? _skipOnboarding : null,
                   child: Text(
                     'Lewati',
-                    style: GoogleFonts.poppins(
+                    style: GoogleFonts.nunito(
                       color: isDark ? Colors.white70 : AppColors.textSecondary,
                       fontSize: 14,
                     ),
@@ -198,7 +198,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           const SizedBox(height: AppDimensions.spacingXXL),
           Text(
             page.title,
-            style: GoogleFonts.poppins(
+            style: GoogleFonts.nunito(
               fontSize: 24,
               fontWeight: FontWeight.bold,
               color: Theme.of(context).textTheme.bodyLarge?.color,
@@ -208,7 +208,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           const SizedBox(height: AppDimensions.spacingL),
           Text(
             page.description,
-            style: GoogleFonts.poppins(
+            style: GoogleFonts.nunito(
               fontSize: 16,
               color: isDark ? Colors.white60 : AppColors.textSecondary,
               height: 1.5,
@@ -243,7 +243,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           const SizedBox(height: AppDimensions.spacingXXL),
           Text(
             'Siapa Namamu?',
-            style: GoogleFonts.poppins(
+            style: GoogleFonts.nunito(
               fontSize: 24,
               fontWeight: FontWeight.bold,
               color: Theme.of(context).textTheme.bodyLarge?.color,
@@ -253,7 +253,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           const SizedBox(height: AppDimensions.spacingM),
           Text(
             'Kita kenalan dulu, biar lebih akrab!',
-            style: GoogleFonts.poppins(
+            style: GoogleFonts.nunito(
               fontSize: 16,
               color: isDark ? Colors.white60 : AppColors.textSecondary,
             ),
@@ -265,13 +265,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             onSubmitted: (_) => _nextPage(), 
             textInputAction: TextInputAction.done,
             autofocus: false, 
-            style: GoogleFonts.poppins(
+            style: GoogleFonts.nunito(
               fontSize: 16,
               color: Theme.of(context).textTheme.bodyLarge?.color,
             ),
             decoration: InputDecoration(
               hintText: 'Masukkan nama kamu',
-              hintStyle: GoogleFonts.poppins(color: Colors.grey),
+              hintStyle: GoogleFonts.nunito(color: Colors.grey),
               filled: true,
               fillColor: Theme.of(context).cardColor, 
               border: OutlineInputBorder(

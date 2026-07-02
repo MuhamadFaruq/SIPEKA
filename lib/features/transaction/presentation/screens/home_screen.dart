@@ -923,11 +923,24 @@ class _HomeScreenState extends State<HomeScreen> {
                       style: GoogleFonts.nunito(color: Colors.grey, fontSize: 13),
                     ),
                   )
-                : ListView.builder(
-                    padding: EdgeInsets.zero,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: sortedTransactions.length > 3 ? 3 : sortedTransactions.length,
-                    itemBuilder: (ctx, index) => _buildTransactionItem(context, sortedTransactions[index]),
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      final double availableHeight = constraints.maxHeight;
+                      // Setiap item transaksi memakan tinggi sekitar 58dp (card + spacing)
+                      final int itemsThatFit = (availableHeight / 58).floor();
+                      // Tampilkan minimal 3 item, dan maksimal 5 item sesuai ruang yang tersedia
+                      final int maxItems = itemsThatFit.clamp(3, 5);
+                      final int count = sortedTransactions.length > maxItems 
+                          ? maxItems 
+                          : sortedTransactions.length;
+
+                      return ListView.builder(
+                        padding: EdgeInsets.zero,
+                        physics: const BouncingScrollPhysics(),
+                        itemCount: count,
+                        itemBuilder: (ctx, index) => _buildTransactionItem(context, sortedTransactions[index]),
+                      );
+                    },
                   ),
           ),
         ],

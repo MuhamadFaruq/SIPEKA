@@ -51,7 +51,7 @@ class CustomButton extends StatelessWidget {
             ],
             Text(
               text,
-              style: GoogleFonts.poppins(
+              style: GoogleFonts.nunito(
                 fontSize: isLarge ? 16 : 14,
                 fontWeight: FontWeight.w600,
               ),
