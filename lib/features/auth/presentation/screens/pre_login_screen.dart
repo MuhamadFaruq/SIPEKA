@@ -201,9 +201,9 @@ class _PreLoginScreenState extends State<PreLoginScreen> {
                               }
                             },
                             child: Ink(
-                              decoration: BoxDecoration(
+                              decoration: const BoxDecoration(
                                 gradient: AppColors.primaryGradient,
-                                borderRadius: const BorderRadius.all(Radius.circular(15)),
+                                borderRadius: BorderRadius.all(Radius.circular(15)),
                               ),
                               child: Container(
                                 alignment: Alignment.center,

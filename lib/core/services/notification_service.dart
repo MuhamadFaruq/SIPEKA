@@ -35,7 +35,7 @@ class NotificationService {
     const AndroidInitializationSettings androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
         
-    const DarwinInitializationSettings iosSettings = DarwinInitializationSettings(
+    const DarwinInitializationSettings darwinSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
@@ -43,21 +43,26 @@ class NotificationService {
 
     const InitializationSettings settings = InitializationSettings(
       android: androidSettings,
-      iOS: iosSettings,
+      iOS: darwinSettings,
+      macOS: darwinSettings,
     );
 
-    await _notificationsPlugin.initialize(
-      settings: settings,
-      onDidReceiveNotificationResponse: (NotificationResponse response) {
-        final payload = response.payload;
-        if (payload != null && payload.isNotEmpty) {
-          debugPrint("Notification tapped with payload: $payload");
-          if (onNotificationTapped != null) {
-            onNotificationTapped!(payload);
+    try {
+      await _notificationsPlugin.initialize(
+        settings: settings,
+        onDidReceiveNotificationResponse: (NotificationResponse response) {
+          final payload = response.payload;
+          if (payload != null && payload.isNotEmpty) {
+            debugPrint("Notification tapped with payload: $payload");
+            if (onNotificationTapped != null) {
+              onNotificationTapped!(payload);
+            }
           }
-        }
-      },
-    );
+        },
+      );
+    } catch (e) {
+      debugPrint("Notification initialize warning: $e");
+    }
   }
 
   static Future<void> requestPermission() async {

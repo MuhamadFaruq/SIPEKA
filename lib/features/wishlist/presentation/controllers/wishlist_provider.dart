@@ -99,6 +99,33 @@ class WishlistProvider with ChangeNotifier {
     }
   }
 
+  Future<void> withdrawSavings(String id, double amount) async {
+    final index = _items.indexWhere((item) => item.id == id);
+    if (index != -1) {
+      double oldAmount = _items[index].savedAmount;
+      
+      // Validasi: jumlah penarikan tidak boleh melebihi tabungan
+      if (amount > oldAmount) {
+        throw Exception("Jumlah penarikan melebihi tabungan yang terkumpul");
+      }
+      
+      double newAmount = oldAmount - amount;
+      _items[index].savedAmount = newAmount;
+      notifyListeners();
+
+      try {
+        // Gunakan addSavings dengan nilai negatif untuk mengurangi
+        await addSavingsUseCase(id, -amount);
+      } catch (e) {
+        debugPrint("Error withdrawing savings: $e");
+        // Rollback memory jika gagal
+        _items[index].savedAmount = oldAmount;
+        notifyListeners();
+        rethrow;
+      }
+    }
+  }
+
   Future<void> deleteWishlist(String id) async {
     final index = _items.indexWhere((item) => item.id == id);
     if (index != -1) {

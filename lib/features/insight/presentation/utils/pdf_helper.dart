@@ -6,7 +6,6 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 import 'package:sipeka/features/wallet/presentation/controllers/wallet_provider.dart';
-import 'package:sipeka/features/transaction/presentation/controllers/transaction_provider.dart';
 import 'package:sipeka/features/transaction/domain/entities/transaction_entity.dart';
 import 'package:sipeka/features/transaction/domain/entities/transaction_type.dart';
 
@@ -312,7 +311,7 @@ class PdfReportHelper {
                     title: 'Pemasukan',
                     value: currencyFormatter.format(totalIncome),
                     accentColor: incomeGreen,
-                    bgColor: PdfColor.fromInt(0xFFE8F5E9), // Light green
+                    bgColor: const PdfColor.fromInt(0xFFE8F5E9), // Light green
                     fontRegular: fontRegular,
                     fontBold: fontBold,
                   ),
@@ -321,7 +320,7 @@ class PdfReportHelper {
                     title: 'Pengeluaran',
                     value: currencyFormatter.format(totalExpense),
                     accentColor: expenseRed,
-                    bgColor: PdfColor.fromInt(0xFFFFEBEE), // Light red
+                    bgColor: const PdfColor.fromInt(0xFFFFEBEE), // Light red
                     fontRegular: fontRegular,
                     fontBold: fontBold,
                   ),
@@ -331,8 +330,8 @@ class PdfReportHelper {
                     value: currencyFormatter.format(netBalance),
                     accentColor: netBalance >= 0 ? primaryBlue : expenseRed,
                     bgColor: netBalance >= 0 
-                        ? PdfColor.fromInt(0xFFE3F2FD) // Light blue
-                        : PdfColor.fromInt(0xFFFFEBEE),
+                        ? const PdfColor.fromInt(0xFFE3F2FD) // Light blue
+                        : const PdfColor.fromInt(0xFFFFEBEE),
                     fontRegular: fontRegular,
                     fontBold: fontBold,
                   ),

@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 
 class AppIcons {
   static const Map<String, IconData> iconMapping = {
+    // Pengeluaran
     'Makan': Icons.restaurant,
     'Transport': Icons.directions_car,
-    'Gaji': Icons.work,
     'Belanja': Icons.shopping_bag,
     'Kesehatan': Icons.medical_services,
     'Pendidikan': Icons.school,
@@ -12,6 +12,53 @@ class AppIcons {
     'Hiburan': Icons.confirmation_number,
     'Rumah': Icons.home,
     'Camilan': Icons.fastfood,
+    'Bensin': Icons.local_gas_station,
+    'Parkir': Icons.local_parking,
+    'Minum': Icons.local_cafe,
+    'Internet': Icons.wifi,
+    'Listrik': Icons.flash_on,
+    'Transfer': Icons.swap_horiz,
+    // Pemasukan
+    'Gaji': Icons.work,
+    'Hadiah': Icons.card_giftcard,
+    'Bonus': Icons.monetization_on,
+    'Penjualan': Icons.storefront,
+    'Jualan': Icons.storefront,
+    'Investasi': Icons.trending_up,
+    'Freelance': Icons.laptop_mac,
+    // Default
+    'Lainnya': Icons.category,
+  };
+
+  /// Daftar ikon yang tersedia untuk dipilih user saat membuat kategori baru
+  static const Map<String, IconData> availableIcons = {
+    'Makan': Icons.restaurant,
+    'Minum': Icons.local_cafe,
+    'Camilan': Icons.fastfood,
+    'Belanja': Icons.shopping_bag,
+    'Transport': Icons.directions_car,
+    'Bensin': Icons.local_gas_station,
+    'Parkir': Icons.local_parking,
+    'Tagihan': Icons.receipt_long,
+    'Kesehatan': Icons.medical_services,
+    'Pendidikan': Icons.school,
+    'Hiburan': Icons.confirmation_number,
+    'Rumah': Icons.home,
+    'Internet': Icons.wifi,
+    'Listrik': Icons.flash_on,
+    'Gaji': Icons.work,
+    'Hadiah': Icons.card_giftcard,
+    'Bonus': Icons.monetization_on,
+    'Investasi': Icons.trending_up,
+    'Freelance': Icons.laptop_mac,
+    'Penjualan': Icons.storefront,
+    'Olahraga': Icons.fitness_center,
+    'Pakaian': Icons.checkroom,
+    'Kecantikan': Icons.face,
+    'Hewan': Icons.pets,
+    'Donasi': Icons.volunteer_activism,
+    'Asuransi': Icons.shield,
+    'Tabungan': Icons.savings,
     'Lainnya': Icons.category,
   };
 

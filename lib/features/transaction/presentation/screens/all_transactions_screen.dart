@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -13,6 +14,8 @@ import 'package:sipeka/core/constants/constants.dart';
 import 'package:sipeka/core/services/notifications.dart'; 
 import 'package:sipeka/features/wallet/presentation/controllers/wallet_provider.dart';
 import 'package:sipeka/features/wallet/domain/entities/wallet_entity.dart'; 
+import 'package:sipeka/features/budget/presentation/controllers/budget_provider.dart';
+import 'package:sipeka/core/utils/formatters.dart';
 
 class AllTransactionsScreen extends StatefulWidget {
   const AllTransactionsScreen({super.key});
@@ -127,7 +130,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                     itemBuilder: (context, index) {
                       final tx = filteredTransactions[index];
                       return InkWell(
-                        onLongPress: () => _confirmDelete(context, tx),
+                        onLongPress: () => _showTransactionOptions(context, tx),
                         child: _buildTransactionCard(context, tx),
                       );
                     },
@@ -406,6 +409,432 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
       },
     );
     if (picked != null) setState(() => _selectedDateRange = picked);
+  }
+
+  void _showTransactionOptions(BuildContext context, Transaction tx) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Theme.of(context).cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  tx.title,
+                  style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                Text(
+                  NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(tx.amount),
+                  style: GoogleFonts.nunito(
+                    color: tx.type == TransactionType.expense ? Colors.red : Colors.green,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Divider(height: 24),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF007AFF).withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.edit_rounded, color: Color(0xFF007AFF)),
+                  ),
+                  title: Text("Edit Transaksi", style: GoogleFonts.nunito(fontWeight: FontWeight.bold)),
+                  subtitle: Text("Ubah detail transaksi ini", style: GoogleFonts.nunito(fontSize: 12, color: Colors.grey)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showEditTransactionSheet(context, tx);
+                  },
+                ),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.delete_rounded, color: Colors.red),
+                  ),
+                  title: Text("Hapus Transaksi", style: GoogleFonts.nunito(fontWeight: FontWeight.bold)),
+                  subtitle: Text("Hapus catatan ini secara permanen", style: GoogleFonts.nunito(fontSize: 12, color: Colors.grey)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _confirmDelete(context, tx);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showEditTransactionSheet(BuildContext context, Transaction tx) {
+    final titleController = TextEditingController(text: tx.title);
+    final amountController = TextEditingController(
+      text: NumberFormat('#,###', 'id_ID').format(tx.amount),
+    );
+    
+    String selectedType = tx.type == TransactionType.income ? 'Pemasukan' : 'Pengeluaran';
+    String selectedCategory = tx.category;
+    String selectedWallet = tx.wallet;
+    DateTime selectedDate = tx.date;
+
+    final wallets = Provider.of<WalletProvider>(context, listen: false).wallets;
+    final budgetProvider = Provider.of<BudgetProvider>(context, listen: false);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (stateCtx, setSheetState) {
+            // Build category list based on type
+            List<String> categories = [];
+            if (selectedType == 'Pengeluaran') {
+              categories = budgetProvider.budgets.map((b) => b.category).toList();
+            } else {
+              categories = ['Gaji', 'Hadiah', 'Bonus', 'Penjualan', 'Transfer', 'Lainnya'];
+            }
+            // Ensure current category is in list
+            if (!categories.contains(selectedCategory)) {
+              categories.add(selectedCategory);
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom,
+              ),
+              child: SingleChildScrollView(
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Handle bar
+                      Center(
+                        child: Container(
+                          width: 40, height: 4,
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      Text(
+                        "Edit Transaksi",
+                        style: GoogleFonts.nunito(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).textTheme.bodyLarge?.color,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Tipe selector
+                      Text("Tipe", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
+                      const SizedBox(height: 8),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).cardColor,
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: Row(
+                          children: ['Pengeluaran', 'Pemasukan'].map((type) {
+                            final isSelected = selectedType == type;
+                            final color = type == 'Pengeluaran' ? Colors.red : Colors.green;
+                            return Expanded(
+                              child: GestureDetector(
+                                onTap: () => setSheetState(() {
+                                  selectedType = type;
+                                  // Reset category when switching type
+                                  if (type == 'Pengeluaran') {
+                                    final cats = budgetProvider.budgets.map((b) => b.category).toList();
+                                    selectedCategory = cats.isNotEmpty ? cats.first : tx.category;
+                                  } else {
+                                    selectedCategory = 'Gaji';
+                                  }
+                                }),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                  decoration: BoxDecoration(
+                                    color: isSelected ? color : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(30),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    type,
+                                    style: GoogleFonts.nunito(
+                                      color: isSelected ? Colors.white : Colors.grey,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Judul
+                      Text("Judul", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: titleController,
+                        style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: Theme.of(context).cardColor,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Nominal
+                      Text("Nominal", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: amountController,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
+                        style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+                        decoration: InputDecoration(
+                          prefixText: "Rp ",
+                          prefixStyle: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+                          filled: true,
+                          fillColor: Theme.of(context).cardColor,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Kategori
+                      Text("Kategori", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).cardColor,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: selectedCategory,
+                            isExpanded: true,
+                            dropdownColor: Theme.of(context).cardColor,
+                            style: GoogleFonts.nunito(
+                              color: Theme.of(context).textTheme.bodyLarge?.color,
+                              fontSize: 14,
+                            ),
+                            items: categories.map((cat) {
+                              return DropdownMenuItem(
+                                value: cat,
+                                child: Row(
+                                  children: [
+                                    Icon(AppIcons.getIcon(cat), size: 18, color: const Color(0xFF007AFF)),
+                                    const SizedBox(width: 8),
+                                    Text(cat, style: GoogleFonts.nunito(fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) setSheetState(() => selectedCategory = val);
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Dompet
+                      if (wallets.isNotEmpty) ...[
+                        Text("Dompet", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).cardColor,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: wallets.any((w) => w.name.toLowerCase() == selectedWallet.toLowerCase())
+                                  ? selectedWallet
+                                  : wallets.first.name,
+                              isExpanded: true,
+                              dropdownColor: Theme.of(context).cardColor,
+                              style: GoogleFonts.nunito(
+                                color: Theme.of(context).textTheme.bodyLarge?.color,
+                                fontSize: 14,
+                              ),
+                              items: wallets.map((w) {
+                                return DropdownMenuItem(
+                                  value: w.name,
+                                  child: Text(w.name, style: GoogleFonts.nunito(fontWeight: FontWeight.bold)),
+                                );
+                              }).toList(),
+                              onChanged: (val) {
+                                if (val != null) setSheetState(() => selectedWallet = val);
+                              },
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      // Tanggal
+                      Text("Tanggal", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
+                      const SizedBox(height: 8),
+                      InkWell(
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: selectedDate,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime(2030),
+                            builder: (context, child) => Theme(
+                              data: Theme.of(context).copyWith(
+                                colorScheme: Theme.of(context).colorScheme.copyWith(primary: const Color(0xFF007AFF)),
+                              ),
+                              child: child!,
+                            ),
+                          );
+                          if (picked != null) {
+                            setSheetState(() => selectedDate = picked);
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).cardColor,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.calendar_today, size: 18, color: Color(0xFF007AFF)),
+                              const SizedBox(width: 10),
+                              Text(
+                                DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(selectedDate),
+                                style: GoogleFonts.nunito(
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).textTheme.bodyLarge?.color,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Save button
+                      SizedBox(
+                        width: double.infinity,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF007AFF), Color(0xFF00479E)],
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              String cleanAmount = amountController.text.replaceAll('.', '');
+                              double amount = double.tryParse(cleanAmount) ?? 0;
+
+                              if (titleController.text.isEmpty) {
+                                SipekaNotification.showWarning(context, "Judul tidak boleh kosong!");
+                                return;
+                              }
+                              if (amount <= 0) {
+                                SipekaNotification.showWarning(context, "Nominal harus lebih dari 0!");
+                                return;
+                              }
+
+                              final updatedTx = Transaction(
+                                id: tx.id,
+                                title: titleController.text,
+                                amount: amount,
+                                date: selectedDate,
+                                type: selectedType == 'Pengeluaran' ? TransactionType.expense : TransactionType.income,
+                                category: selectedCategory,
+                                wallet: selectedWallet,
+                                source: tx.source,
+                              );
+
+                              // Show loading
+                              showDialog(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (_) => const Center(child: CircularProgressIndicator()),
+                              );
+
+                              final txProvider = Provider.of<TransactionProvider>(context, listen: false);
+                              final success = await txProvider.updateTransaction(updatedTx);
+
+                              if (context.mounted) Navigator.of(context, rootNavigator: true).pop(); // close loading
+                              if (ctx.mounted) Navigator.pop(ctx); // close bottom sheet
+
+                              if (context.mounted) {
+                                if (success) {
+                                  SipekaNotification.showSuccess(context, "Transaksi berhasil diperbarui!");
+                                } else {
+                                  SipekaNotification.showWarning(context, "Gagal memperbarui transaksi.");
+                                }
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              shadowColor: Colors.transparent,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            child: Text(
+                              "SIMPAN PERUBAHAN",
+                              style: GoogleFonts.nunito(fontWeight: FontWeight.bold, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   void _confirmDelete(BuildContext context, Transaction tx) {

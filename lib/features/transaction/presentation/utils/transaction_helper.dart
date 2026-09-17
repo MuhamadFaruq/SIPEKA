@@ -24,7 +24,7 @@ class TransactionHelper {
         double? val = double.tryParse(numStr);
         if (val != null) {
           final formattedVal = NumberFormat('#,###', 'id_ID').format(val * 1000);
-          return 'Rp.${formattedVal}';
+          return 'Rp.$formattedVal';
         }
         return match.group(0)!;
       }
@@ -38,7 +38,7 @@ class TransactionHelper {
         double? val = double.tryParse(numStr);
         if (val != null) {
           final formattedVal = NumberFormat('#,###', 'id_ID').format(val * 1000000);
-          return 'Rp.${formattedVal}';
+          return 'Rp.$formattedVal';
         }
         return match.group(0)!;
       }
@@ -52,7 +52,7 @@ class TransactionHelper {
         double? val = double.tryParse(numStr);
         if (val != null) {
           final formattedVal = NumberFormat('#,###', 'id_ID').format(val * 1000);
-          return 'Rp.${formattedVal}';
+          return 'Rp.$formattedVal';
         }
         return match.group(0)!;
       }
@@ -66,7 +66,7 @@ class TransactionHelper {
         double? val = double.tryParse(numStr);
         if (val != null) {
           final formattedVal = NumberFormat('#,###', 'id_ID').format(val);
-          return 'Rp.${formattedVal}';
+          return 'Rp.$formattedVal';
         }
         return match.group(0)!;
       }
@@ -81,7 +81,7 @@ class TransactionHelper {
         double? val = double.tryParse(numStr);
         if (val != null) {
           final formattedVal = NumberFormat('#,###', 'id_ID').format(val);
-          return 'Rp.${formattedVal}';
+          return 'Rp.$formattedVal';
         }
         return match.group(0)!;
       }

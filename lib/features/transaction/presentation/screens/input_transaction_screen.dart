@@ -15,6 +15,7 @@ import 'package:sipeka/core/services/ocr_helper.dart';
 import 'package:sipeka/core/services/notifications.dart'; 
 import 'package:sipeka/core/theme/theme_provider.dart';
 import 'package:sipeka/core/theme/app_theme.dart';
+import 'package:sipeka/core/constants/constants.dart' show AppIcons;
 import 'package:sipeka/widgets/custom_numpad.dart';
 import 'package:sipeka/features/wallet/presentation/controllers/wallet_provider.dart';
 
@@ -400,11 +401,13 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
       }).toList();
     } else {
       categoriesToShow = [
-        <String, dynamic>{'icon': Icons.work, 'label': 'Gaji', 'val': 'Gaji'},
-        <String, dynamic>{'icon': Icons.card_giftcard, 'label': 'Hadiah', 'val': 'Hadiah'},
-        <String, dynamic>{'icon': Icons.monetization_on, 'label': 'Bonus', 'val': 'Bonus'},
-        <String, dynamic>{'icon': Icons.storefront, 'label': 'Jualan', 'val': 'Penjualan'},
-        <String, dynamic>{'icon': Icons.add_circle_outline, 'label': 'Lainnya', 'val': 'Lainnya'},
+        <String, dynamic>{'icon': AppIcons.getIcon('Gaji'), 'label': 'Gaji', 'val': 'Gaji'},
+        <String, dynamic>{'icon': AppIcons.getIcon('Hadiah'), 'label': 'Hadiah', 'val': 'Hadiah'},
+        <String, dynamic>{'icon': AppIcons.getIcon('Bonus'), 'label': 'Bonus', 'val': 'Bonus'},
+        <String, dynamic>{'icon': AppIcons.getIcon('Penjualan'), 'label': 'Jualan', 'val': 'Penjualan'},
+        <String, dynamic>{'icon': AppIcons.getIcon('Investasi'), 'label': 'Investasi', 'val': 'Investasi'},
+        <String, dynamic>{'icon': AppIcons.getIcon('Freelance'), 'label': 'Freelance', 'val': 'Freelance'},
+        <String, dynamic>{'icon': AppIcons.getIcon('Lainnya'), 'label': 'Lainnya', 'val': 'Lainnya'},
       ];
     }
 

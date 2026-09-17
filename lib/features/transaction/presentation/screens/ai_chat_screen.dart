@@ -472,10 +472,10 @@ ${budgetStr.isEmpty ? 'Belum ada anggaran kategori.' : budgetStr}
   }
 
   Widget _buildMessageBubble(ChatMessage message, bool isDark) {
-    final Color userBubbleColor = AppColors.primaryBlue;
+    const Color userBubbleColor = AppColors.primaryBlue;
     final Color aiBubbleColor = isDark ? const Color(0xFF1C1C1E) : const Color(0xFFE5E5EA);
     
-    final Color userTextColor = Colors.white;
+    const Color userTextColor = Colors.white;
     final Color aiTextColor = isDark ? Colors.white : Colors.black87;
 
     return Padding(
@@ -723,8 +723,9 @@ class MarkdownRichText extends StatelessWidget {
 
       if (headerLevel > 0) {
         double factor = 1.0;
-        if (headerLevel == 1) factor = 1.4;
-        else if (headerLevel == 2) factor = 1.25;
+        if (headerLevel == 1) {
+          factor = 1.4;
+        } else if (headerLevel == 2) factor = 1.25;
         else factor = 1.15;
 
         normalStyle = style.copyWith(

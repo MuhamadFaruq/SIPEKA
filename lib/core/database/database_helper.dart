@@ -234,6 +234,18 @@ class DatabaseHelper {
     return await db.delete('transactions', where: 'id = ?', whereArgs: [id]);
   }
 
+  Future<int> updateTransaction(String id, Map<String, dynamic> row) async {
+    final db = await database;
+    try {
+      final result = await db.update('transactions', row, where: 'id = ?', whereArgs: [id]);
+      debugPrint("DATABASE: updateTransaction OK, result=$result, id=$id");
+      return result;
+    } catch (e) {
+      debugPrint("DATABASE: updateTransaction ERROR: $e | row=$row");
+      rethrow;
+    }
+  }
+
   // --- CRUD BUDGET ---
   Future<int> insertBudget(Map<String, dynamic> row) async {
     final db = await database;

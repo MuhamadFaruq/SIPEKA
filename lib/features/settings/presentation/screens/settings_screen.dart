@@ -78,7 +78,7 @@ class SettingsScreen extends StatelessWidget {
                   ),
                   trailing: Switch(
                     value: isPinEnabled,
-                    activeColor: const Color(0xFF007AFF),
+                    activeThumbColor: const Color(0xFF007AFF),
                     onChanged: (bool value) async {
                       if (value) {
                         _showSetupPinDialog(context, (success) async {
@@ -130,7 +130,7 @@ class SettingsScreen extends StatelessWidget {
                     ),
                     trailing: Switch(
                       value: isBiometricEnabled,
-                      activeColor: Colors.teal,
+                      activeThumbColor: Colors.teal,
                       onChanged: (bool value) async {
                         if (value) {
                           bool canAuth = await AuthService().authenticateWithBiometrics();
@@ -172,7 +172,7 @@ class SettingsScreen extends StatelessWidget {
                     ),
                     trailing: Switch(
                       value: isAutolockEnabled,
-                      activeColor: Colors.orange,
+                      activeThumbColor: Colors.orange,
                       onChanged: (bool value) async {
                         await prefs.setBool('is_autolock_enabled', value);
                         setTileState(() => isAutolockEnabled = value);
@@ -203,7 +203,7 @@ class SettingsScreen extends StatelessWidget {
                     ),
                     trailing: Switch(
                       value: isBlurEnabled,
-                      activeColor: Colors.purple,
+                      activeThumbColor: Colors.purple,
                       onChanged: (bool value) async {
                         await prefs.setBool('is_blur_enabled', value);
                         setTileState(() => isBlurEnabled = value);
@@ -642,11 +642,11 @@ class SettingsScreen extends StatelessWidget {
                 TextField(
                   controller: answerController,
                   style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: "Jawaban Anda", 
-                    labelStyle: const TextStyle(color: Colors.grey),
+                    labelStyle: TextStyle(color: Colors.grey),
                     hintText: "Jawaban rahasia",
-                    hintStyle: const TextStyle(color: Colors.white24),
+                    hintStyle: TextStyle(color: Colors.white24),
                   ),
                 ),
               ],
@@ -1378,8 +1378,8 @@ class SettingsScreen extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         backgroundColor: Theme.of(context).cardColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: const [
+        title: const Row(
+          children: [
             Icon(Icons.error_outline, color: Colors.redAccent),
             SizedBox(width: 10),
             Text("Google Link Gagal", style: TextStyle(fontWeight: FontWeight.bold)),

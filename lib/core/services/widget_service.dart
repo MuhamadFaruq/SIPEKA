@@ -1,18 +1,19 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:intl/intl.dart';
 
 class WidgetService {
   static const List<String> _androidWidgetNames = [
-    'SaldoWidgetProvider',
-    'VoiceWidgetProvider',
+    'QuickActionWidgetProvider',
     'CameraWidgetProvider',
     'ShortcutWidgetProvider',
   ];
 
   /// Memperbarui saldo pada widget layar utama HP secara real-time
   static Future<void> updateWidgetData(double totalSaldo) async {
+    if (!Platform.isAndroid && !Platform.isIOS) return;
     try {
       final String formattedSaldo = NumberFormat.currency(
         locale: 'id_ID',
@@ -37,6 +38,7 @@ class WidgetService {
 
   /// Mendapatkan URI peluncuran jika aplikasi dibuka dari klik widget saat tertutup
   static Future<Uri?> getInitiallyLaunchedUri() async {
+    if (!Platform.isAndroid && !Platform.isIOS) return null;
     try {
       return await HomeWidget.initiallyLaunchedFromHomeWidget();
     } catch (e) {

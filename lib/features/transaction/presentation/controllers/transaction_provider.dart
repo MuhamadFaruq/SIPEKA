@@ -12,6 +12,7 @@ import 'package:sipeka/features/wallet/domain/entities/wallet_entity.dart';
 import '../../domain/usecases/add_transaction.dart';
 import '../../domain/usecases/delete_transaction.dart';
 import '../../domain/usecases/get_transactions.dart';
+import '../../domain/usecases/update_transaction.dart';
 import '../../data/repositories/transaction_repository_impl.dart';
 import '../../data/datasources/transaction_local_datasource.dart';
 import '../../data/datasources/transaction_remote_datasource.dart';
@@ -19,6 +20,7 @@ import '../../data/datasources/transaction_remote_datasource.dart';
 class TransactionProvider with ChangeNotifier {
   final GetTransactionsUseCase getTransactionsUseCase;
   final AddTransactionUseCase addTransactionUseCase;
+  final UpdateTransactionUseCase updateTransactionUseCase;
   final DeleteTransactionUseCase deleteTransactionUseCase;
 
   List<TransactionEntity> _transactions = [];
@@ -33,6 +35,7 @@ class TransactionProvider with ChangeNotifier {
   TransactionProvider({
     GetTransactionsUseCase? getTransactionsUseCase,
     AddTransactionUseCase? addTransactionUseCase,
+    UpdateTransactionUseCase? updateTransactionUseCase,
     DeleteTransactionUseCase? deleteTransactionUseCase,
   })  : getTransactionsUseCase = getTransactionsUseCase ??
             GetTransactionsUseCase(
@@ -43,6 +46,13 @@ class TransactionProvider with ChangeNotifier {
             ),
         addTransactionUseCase = addTransactionUseCase ??
             AddTransactionUseCase(
+              TransactionRepositoryImpl(
+                localDataSource: TransactionLocalDataSourceImpl(DatabaseHelper.instance),
+                remoteDataSource: TransactionRemoteDataSourceImpl(SyncService()),
+              ),
+            ),
+        updateTransactionUseCase = updateTransactionUseCase ??
+            UpdateTransactionUseCase(
               TransactionRepositoryImpl(
                 localDataSource: TransactionLocalDataSourceImpl(DatabaseHelper.instance),
                 remoteDataSource: TransactionRemoteDataSourceImpl(SyncService()),
@@ -129,6 +139,39 @@ class TransactionProvider with ChangeNotifier {
       debugPrint("PROVIDER: Exception saat simpan transaksi '${tx.title}': $e");
       // Rollback jika gagal
       _transactions.remove(tx);
+      _updateSortedCache();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> updateTransaction(TransactionEntity updatedTx) async {
+    final index = _transactions.indexWhere((t) => t.id == updatedTx.id);
+    if (index == -1) return false;
+
+    // 1. Simpan backup untuk rollback
+    final oldTx = _transactions[index];
+
+    // 2. Optimistic update di memori
+    _transactions[index] = updatedTx;
+    _updateSortedCache();
+    notifyListeners();
+
+    // 3. Simpan ke database
+    try {
+      final success = await updateTransactionUseCase(updatedTx);
+      if (!success) {
+        debugPrint("PROVIDER: DB gagal update transaksi '${updatedTx.title}' — rollback!");
+        _transactions[index] = oldTx;
+        _updateSortedCache();
+        notifyListeners();
+        return false;
+      }
+      debugPrint("PROVIDER: Berhasil update transaksi: ${updatedTx.title} (id=${updatedTx.id})");
+      return true;
+    } catch (e) {
+      debugPrint("PROVIDER: Exception saat update transaksi '${updatedTx.title}': $e");
+      _transactions[index] = oldTx;
       _updateSortedCache();
       notifyListeners();
       return false;

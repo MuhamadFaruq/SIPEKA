@@ -31,9 +31,7 @@ class AppSecurityManager with WidgetsBindingObserver {
     // Note: AppLifecycleState.inactive triggers when a dialog, biometric prompt, or file picker opens.
     // Using paused or hidden is much safer to determine if the app actually went to the background.
     if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
-      if (_backgroundTime == null) {
-        _backgroundTime = DateTime.now();
-      }
+      _backgroundTime ??= DateTime.now();
     } else if (state == AppLifecycleState.resumed) {
       if (_backgroundTime != null) {
         final diff = DateTime.now().difference(_backgroundTime!);

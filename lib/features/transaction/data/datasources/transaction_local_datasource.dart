@@ -4,6 +4,7 @@ import 'package:sipeka/features/transaction/data/models/transaction_model.dart';
 abstract class TransactionLocalDataSource {
   Future<List<TransactionModel>> getTransactions();
   Future<bool> insertTransaction(TransactionModel transaction);
+  Future<bool> updateTransaction(TransactionModel transaction);
   Future<void> deleteTransaction(String id);
 }
 
@@ -25,7 +26,14 @@ class TransactionLocalDataSourceImpl implements TransactionLocalDataSource {
   }
 
   @override
+  Future<bool> updateTransaction(TransactionModel transaction) async {
+    final result = await dbHelper.updateTransaction(transaction.id, transaction.toMap());
+    return result > 0;
+  }
+
+  @override
   Future<void> deleteTransaction(String id) async {
     await dbHelper.deleteTransaction(id);
   }
 }
+

@@ -226,6 +226,137 @@ class _WishlistScreenState extends State<WishlistScreen> {
     );
   }
 
+  void _showTarikDialog(BuildContext context, WishlistItem item) {
+    final nominalController = TextEditingController();
+    final wishlistProvider = Provider.of<WishlistProvider>(context, listen: false);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25.0))),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: SingleChildScrollView(
+            child: Container(
+              padding: const EdgeInsets.all(25),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.savings_outlined, color: Colors.orange, size: 24),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("Tarik Tabungan", style: GoogleFonts.nunito(
+                              fontSize: 18, 
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).textTheme.bodyLarge?.color
+                            )),
+                            Text(item.title, style: GoogleFonts.nunito(color: Colors.grey[600], fontSize: 13)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("Saldo terkumpul:", style: GoogleFonts.nunito(color: Colors.orange[700], fontSize: 13, fontWeight: FontWeight.w600)),
+                        Text(formatRupiah(item.savedAmount), style: GoogleFonts.nunito(color: Colors.orange[700], fontSize: 15, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  TextField(
+                    controller: nominalController,
+                    autofocus: true,
+                    keyboardType: TextInputType.number,
+                    style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
+                    decoration: InputDecoration(
+                      labelText: 'Nominal Penarikan',
+                      labelStyle: const TextStyle(color: Colors.grey),
+                      filled: true,
+                      fillColor: Theme.of(context).cardColor,
+                      prefixText: "Rp ",
+                      prefixStyle: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    ),
+                  ),
+                  const SizedBox(height: 25),
+                  SizedBox(
+                    width: double.infinity,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(colors: [Colors.orange, Color(0xFFE65100)]),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          String cleanValue = nominalController.text.replaceAll('.', '');
+                          double nominal = double.tryParse(cleanValue) ?? 0;
+
+                          if (nominal <= 0) {
+                            SipekaNotification.showWarning(context, "Masukkan nominal yang valid!");
+                            return;
+                          }
+
+                          if (nominal > item.savedAmount) {
+                            SipekaNotification.showWarning(context, "Nominal penarikan melebihi tabungan (${formatRupiah(item.savedAmount)})!");
+                            return;
+                          }
+
+                          // Show loading
+                          showDialog(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (_) => const Center(child: CircularProgressIndicator()),
+                          );
+
+                          try {
+                            await wishlistProvider.withdrawSavings(item.id, nominal);
+                            if (context.mounted) Navigator.pop(context); // Tutup loading
+                            if (ctx.mounted) Navigator.pop(ctx); // Tutup bottom sheet
+                            if (context.mounted) SipekaNotification.showSuccess(context, "Berhasil menarik ${formatRupiah(nominal)}!");
+                          } catch (e) {
+                            if (context.mounted) Navigator.pop(context); // Tutup loading
+                            if (context.mounted) SipekaNotification.showWarning(context, "Gagal menarik tabungan: $e");
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, padding: const EdgeInsets.symmetric(vertical: 15)),
+                        child: Text("TARIK TABUNGAN", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, color: Colors.white)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _deleteItem(String id) {
     final wishlistProvider = Provider.of<WishlistProvider>(context, listen: false);
     showDialog(
@@ -451,6 +582,9 @@ class _WishlistScreenState extends State<WishlistScreen> {
                                 ),
                               ),
                             ),
+                            const SizedBox(width: 8),
+                            if (item.savedAmount > 0)
+                              _buildActionBtn(context, Icons.savings_outlined, isDark ? Colors.orange.withOpacity(0.1) : Colors.orange[50]!, Colors.orange, () => _showTarikDialog(context, item)),
                             const SizedBox(width: 8),
                             _buildActionBtn(context, Icons.delete_outline, isDark ? Colors.red.withOpacity(0.1) : Colors.red[50]!, Colors.red, () => _deleteItem(item.id)),
                           ],
