@@ -21,7 +21,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 5,
+      version: 6,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -59,6 +59,18 @@ class DatabaseHelper {
         target REAL NOT NULL DEFAULT 0,
         collected REAL NOT NULL DEFAULT 0,
         icon_code INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS wishlist_history (
+        id TEXT PRIMARY KEY,
+        wishlist_id TEXT NOT NULL,
+        wishlist_title TEXT NOT NULL,
+        type TEXT NOT NULL,
+        amount REAL NOT NULL,
+        date TEXT NOT NULL,
+        notes TEXT
       )
     ''');
 
@@ -202,6 +214,20 @@ class DatabaseHelper {
       } catch (e) {
         debugPrint("DATABASE: Error upgrading wallets to v5: $e");
       }
+    }
+    if (oldVersion < 6) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS wishlist_history (
+          id TEXT PRIMARY KEY,
+          wishlist_id TEXT NOT NULL,
+          wishlist_title TEXT NOT NULL,
+          type TEXT NOT NULL,
+          amount REAL NOT NULL,
+          date TEXT NOT NULL,
+          notes TEXT
+        )
+      ''');
+      debugPrint("DATABASE: Tabel wishlist_history berhasil dibuat di upgrade v6!");
     }
   }
 
@@ -353,12 +379,50 @@ class DatabaseHelper {
 
   Future<int> deleteWishlist(int id) async {
     final db = await database;
+    await db.delete('wishlist_history', where: 'wishlist_id = ?', whereArgs: [id.toString()]);
     return await db.delete('wishlist', where: 'id = ?', whereArgs: [id]);
   }
 
   Future<int> clearWishlistTable() async {
     final db = await database;
+    await db.delete('wishlist_history');
     return await db.delete('wishlist');
+  }
+
+  // --- CRUD WISHLIST HISTORY ---
+  Future<int> insertWishlistHistory(Map<String, dynamic> row) async {
+    final db = await database;
+    try {
+      final result = await db.insert('wishlist_history', row, conflictAlgorithm: ConflictAlgorithm.replace);
+      debugPrint("DATABASE: insertWishlistHistory OK, result=$result");
+      return result;
+    } catch (e) {
+      debugPrint("DATABASE: insertWishlistHistory ERROR: $e | row=$row");
+      rethrow;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getWishlistHistoryByWishlistId(String wishlistId) async {
+    final db = await database;
+    return await db.query(
+      'wishlist_history',
+      where: 'wishlist_id = ?',
+      whereArgs: [wishlistId],
+      orderBy: 'date DESC',
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getAllWishlistHistory() async {
+    final db = await database;
+    return await db.query(
+      'wishlist_history',
+      orderBy: 'date DESC',
+    );
+  }
+
+  Future<int> deleteWishlistHistoryByWishlistId(String wishlistId) async {
+    final db = await database;
+    return await db.delete('wishlist_history', where: 'wishlist_id = ?', whereArgs: [wishlistId]);
   }
 
   // --- UTILITY ---
@@ -367,9 +431,14 @@ class DatabaseHelper {
     await db.delete('transactions');
     await db.delete('budgets');
     await db.delete('wishlist');
+    await db.delete('wishlist_history');
     await db.delete('debts');
     await db.delete('chat_messages');
-    await db.delete('quick_actions');
+    try {
+      await db.delete('quick_actions');
+    } catch (_) {
+      // Tabel quick_actions tidak ada di schema (data disimpan di SharedPreferences)
+    }
     await db.delete('wallets');
     await db.delete('bills');
 

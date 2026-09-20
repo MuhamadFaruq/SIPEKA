@@ -12,6 +12,7 @@ import 'package:flutter/services.dart';
 import 'package:sipeka/core/utils/formatters.dart';
 import 'package:sipeka/core/constants/constants.dart'; 
 import 'package:sipeka/core/services/notifications.dart';
+import 'package:sipeka/core/widgets/icon_picker_sheet.dart';
 
 class BudgetScreen extends StatefulWidget {
   const BudgetScreen({super.key});
@@ -194,7 +195,13 @@ class _BudgetScreenState extends State<BudgetScreen> {
               Container(
                 width: 44, height: 44,
                 decoration: BoxDecoration(color: startBlue.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-                child: Icon(AppIcons.getIcon(budget.category), color: startBlue, size: 24),
+                child: Icon(
+                  budget.iconCode != 0
+                      ? IconData(budget.iconCode, fontFamily: 'MaterialIcons')
+                      : AppIcons.getIcon(budget.category),
+                  color: startBlue,
+                  size: 24,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -370,25 +377,56 @@ class _BudgetScreenState extends State<BudgetScreen> {
                     ),
                   ),
                   const SizedBox(height: 15),
-                  Text("Pilih Ikon:", style: TextStyle(
-                    fontSize: 12, 
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).textTheme.bodyLarge?.color
-                  )),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: _availableIcons.map((icon) {
-                      bool isSelected = selectedIconCode == icon.codePoint;
-                      return GestureDetector(
-                        onTap: () => setModalState(() => selectedIconCode = icon.codePoint),
-                        child: CircleAvatar(
-                          backgroundColor: isSelected ? startBlue : Theme.of(context).cardColor,
-                          child: Icon(icon, color: isSelected ? Colors.white : Colors.grey, size: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text("Pilih Ikon:", style: TextStyle(
+                        fontSize: 12, 
+                        fontWeight: FontWeight.bold, 
+                        color: Theme.of(context).textTheme.bodyLarge?.color
+                      )),
+                      TextButton.icon(
+                        onPressed: () async {
+                          final picked = await IconPickerSheet.show(
+                            context,
+                            currentIconCode: selectedIconCode,
+                          );
+                          if (picked != null) {
+                            setModalState(() => selectedIconCode = picked.codePoint);
+                          }
+                        },
+                        icon: const Icon(Icons.grid_view_rounded, size: 16, color: Color(0xFF007AFF)),
+                        label: const Text(
+                          "Pilih Ikon Lainnya", 
+                          style: TextStyle(fontSize: 12, color: Color(0xFF007AFF), fontWeight: FontWeight.bold),
                         ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Builder(
+                    builder: (context) {
+                      final hasSelectedInList = _availableIcons.any((icon) => icon.codePoint == selectedIconCode);
+                      final displayIcons = [
+                        if (!hasSelectedInList && selectedIconCode != 0)
+                          IconData(selectedIconCode, fontFamily: 'MaterialIcons'),
+                        ..._availableIcons,
+                      ];
+                      return Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: displayIcons.map((icon) {
+                          bool isSelected = selectedIconCode == icon.codePoint;
+                          return GestureDetector(
+                            onTap: () => setModalState(() => selectedIconCode = icon.codePoint),
+                            child: CircleAvatar(
+                              backgroundColor: isSelected ? startBlue : Theme.of(context).cardColor,
+                              child: Icon(icon, color: isSelected ? Colors.white : Colors.grey, size: 20),
+                            ),
+                          );
+                        }).toList(),
                       );
-                    }).toList(),
+                    },
                   ),
                   const SizedBox(height: 25),
                   RunRow(isEditing, mainContext, budget, saveProcess, startBlue),

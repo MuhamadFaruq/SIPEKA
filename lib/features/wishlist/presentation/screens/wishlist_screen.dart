@@ -9,6 +9,8 @@ import 'package:sipeka/features/wishlist/presentation/controllers/wishlist_provi
 import 'package:sipeka/features/wishlist/domain/entities/wishlist_entity.dart';
 import 'package:sipeka/core/theme/app_theme.dart';
 import 'financial_simulator_screen.dart';
+import '../widgets/wishlist_detail_sheet.dart';
+import '../widgets/wishlist_all_history_sheet.dart';
 
 class WishlistScreen extends StatefulWidget {
   const WishlistScreen({super.key});
@@ -39,8 +41,37 @@ class _WishlistScreenState extends State<WishlistScreen> {
     ).format(number);
   }
 
+  void _showDetailSheet(BuildContext context, WishlistItem item) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => WishlistDetailSheet(
+        item: item,
+        onNabungTap: (targetItem) async {
+          Navigator.pop(ctx);
+          _showNabungDialog(context, targetItem);
+        },
+        onTarikTap: (targetItem) async {
+          Navigator.pop(ctx);
+          _showTarikDialog(context, targetItem);
+        },
+      ),
+    );
+  }
+
+  void _showAllHistorySheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => const WishlistAllHistorySheet(),
+    );
+  }
+
   void _showNabungDialog(BuildContext context, WishlistItem item) {
     final nominalController = TextEditingController();
+    final noteController = TextEditingController();
     final wishlistProvider = Provider.of<WishlistProvider>(context, listen: false);
 
     showModalBottomSheet(
@@ -82,6 +113,19 @@ class _WishlistScreenState extends State<WishlistScreen> {
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                     ),
                   ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: noteController,
+                    style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+                    decoration: InputDecoration(
+                      labelText: 'Catatan (Opsional)',
+                      hintText: 'Cth: Sisa uang jajan, bonus kerja',
+                      labelStyle: const TextStyle(color: Colors.grey),
+                      filled: true,
+                      fillColor: Theme.of(context).cardColor,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    ),
+                  ),
                   const SizedBox(height: 25),
                   SizedBox(
                     width: double.infinity,
@@ -101,7 +145,11 @@ class _WishlistScreenState extends State<WishlistScreen> {
                             );
 
                             try {
-                              await wishlistProvider.addSavings(item.id, nominal);
+                              await wishlistProvider.addSavings(
+                                item.id,
+                                nominal,
+                                note: noteController.text.trim().isEmpty ? null : noteController.text.trim(),
+                              );
                               if (context.mounted) Navigator.pop(context); // Tutup loading
                               if (ctx.mounted) Navigator.pop(ctx); // Tutup bottom sheet
                               if (context.mounted) SipekaNotification.showSuccess(context, "Berhasil menabung ${formatRupiah(nominal)}!");
@@ -228,6 +276,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
 
   void _showTarikDialog(BuildContext context, WishlistItem item) {
     final nominalController = TextEditingController();
+    final noteController = TextEditingController();
     final wishlistProvider = Provider.of<WishlistProvider>(context, listen: false);
 
     showModalBottomSheet(
@@ -303,6 +352,19 @@ class _WishlistScreenState extends State<WishlistScreen> {
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                     ),
                   ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: noteController,
+                    style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+                    decoration: InputDecoration(
+                      labelText: 'Catatan (Opsional)',
+                      hintText: 'Cth: Keperluan mendadak, beli barang',
+                      labelStyle: const TextStyle(color: Colors.grey),
+                      filled: true,
+                      fillColor: Theme.of(context).cardColor,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    ),
+                  ),
                   const SizedBox(height: 25),
                   SizedBox(
                     width: double.infinity,
@@ -334,7 +396,11 @@ class _WishlistScreenState extends State<WishlistScreen> {
                           );
 
                           try {
-                            await wishlistProvider.withdrawSavings(item.id, nominal);
+                            await wishlistProvider.withdrawSavings(
+                              item.id,
+                              nominal,
+                              note: noteController.text.trim().isEmpty ? null : noteController.text.trim(),
+                            );
                             if (context.mounted) Navigator.pop(context); // Tutup loading
                             if (ctx.mounted) Navigator.pop(ctx); // Tutup bottom sheet
                             if (context.mounted) SipekaNotification.showSuccess(context, "Berhasil menarik ${formatRupiah(nominal)}!");
@@ -420,13 +486,23 @@ class _WishlistScreenState extends State<WishlistScreen> {
                           ],
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.psychology_alt_rounded, color: Colors.white, size: 28),
-                        tooltip: "AI Financial Planner",
-                        onPressed: () => Navigator.push(
-                          context,
-                          SmoothPageRoute(child: const FinancialSimulatorScreen()),
-                        ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.history_edu_rounded, color: Colors.white, size: 26),
+                            tooltip: "Rekapan Semua Mutasi",
+                            onPressed: () => _showAllHistorySheet(context),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.psychology_alt_rounded, color: Colors.white, size: 28),
+                            tooltip: "AI Financial Planner",
+                            onPressed: () => Navigator.push(
+                              context,
+                              SmoothPageRoute(child: const FinancialSimulatorScreen()),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -448,7 +524,38 @@ class _WishlistScreenState extends State<WishlistScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text("Tabungan Saat Ini", style: GoogleFonts.nunito(fontWeight: FontWeight.w600, color: Colors.grey)),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text("Tabungan Saat Ini", style: GoogleFonts.nunito(fontWeight: FontWeight.w600, color: Colors.grey)),
+                            InkWell(
+                              onTap: () => _showAllHistorySheet(context),
+                              borderRadius: BorderRadius.circular(10),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: startBlue.withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.receipt_long_rounded, size: 14, color: startBlue),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      "Rekapan",
+                                      style: GoogleFonts.nunito(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: startBlue,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                         Text(formatRupiah(wishlistProvider.totalSaved), style: GoogleFonts.nunito(
                           fontSize: 24, 
                           fontWeight: FontWeight.bold,
@@ -510,7 +617,6 @@ class _WishlistScreenState extends State<WishlistScreen> {
                   
                   return Container(
                     margin: const EdgeInsets.only(bottom: 15),
-                    padding: const EdgeInsets.all(15),
                     decoration: BoxDecoration(
                       color: Theme.of(context).cardColor,
                       borderRadius: BorderRadius.circular(20),
@@ -521,75 +627,98 @@ class _WishlistScreenState extends State<WishlistScreen> {
                         )
                       ]
                     ),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 50, height: 50,
-                              decoration: BoxDecoration(
-                                color: startBlue.withOpacity(0.1), 
-                                borderRadius: BorderRadius.circular(12)
-                              ),
-                              child: Icon(Icons.auto_awesome, color: startBlue, size: 28),
-                            ),
-                            const SizedBox(width: 15),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () => _showDetailSheet(context, item),
+                        child: Padding(
+                          padding: const EdgeInsets.all(15),
+                          child: Column(
+                            children: [
+                              Row(
                                 children: [
-                                  Text(item.title, style: GoogleFonts.nunito(
+                                  Container(
+                                    width: 50, height: 50,
+                                    decoration: BoxDecoration(
+                                      color: startBlue.withOpacity(0.1), 
+                                      borderRadius: BorderRadius.circular(12)
+                                    ),
+                                    child: Icon(Icons.auto_awesome, color: startBlue, size: 28),
+                                  ),
+                                  const SizedBox(width: 15),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(item.title, style: GoogleFonts.nunito(
+                                          fontWeight: FontWeight.bold, 
+                                          fontSize: 16,
+                                          color: Theme.of(context).textTheme.bodyLarge?.color
+                                        )),
+                                        const SizedBox(height: 2),
+                                        Row(
+                                          children: [
+                                            Text("Target: ${formatRupiah(item.targetAmount)}", style: GoogleFonts.nunito(color: Colors.grey[600], fontSize: 11)),
+                                            const SizedBox(width: 6),
+                                            Text("•", style: TextStyle(color: Colors.grey[400], fontSize: 10)),
+                                            const SizedBox(width: 6),
+                                            Text("Lihat mutasi", style: GoogleFonts.nunito(color: startBlue, fontSize: 11, fontWeight: FontWeight.bold)),
+                                            Icon(Icons.chevron_right, color: startBlue, size: 14),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Text("${(progress * 100).toInt()}%", style: GoogleFonts.nunito(
                                     fontWeight: FontWeight.bold, 
-                                    fontSize: 16,
-                                    color: Theme.of(context).textTheme.bodyLarge?.color
+                                    fontSize: 16, 
+                                    color: progress >= 1.0 ? Colors.green : Theme.of(context).textTheme.bodyLarge?.color
                                   )),
-                                  Text("Target: ${formatRupiah(item.targetAmount)}", style: GoogleFonts.nunito(color: Colors.grey[600], fontSize: 11)),
                                 ],
                               ),
-                            ),
-                            Text("${(progress * 100).toInt()}%", style: GoogleFonts.nunito(
-                              fontWeight: FontWeight.bold, 
-                              fontSize: 16, 
-                              color: progress >= 1.0 ? Colors.green : Theme.of(context).textTheme.bodyLarge?.color
-                            )),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: LinearProgressIndicator(
-                            value: progress, 
-                            minHeight: 7, 
-                            backgroundColor: isDark ? Colors.white10 : Colors.grey[100], 
-                            valueColor: AlwaysStoppedAnimation<Color>(progress >= 1.0 ? Colors.green : startBlue)
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  gradient: progress >= 1.0 
-                                    ? const LinearGradient(colors: [Colors.green, Color(0xFF00C853)]) 
-                                    : LinearGradient(colors: [startBlue, endBlue]), 
-                                  borderRadius: BorderRadius.circular(12)
-                                ),
-                                child: ElevatedButton(
-                                  onPressed: progress >= 1.0 ? null : () => _showNabungDialog(context, item),
-                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent),
-                                  child: Text(progress >= 1.0 ? "Impian Tercapai! 🎉" : "Tabung Sekarang", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13)),
+                              const SizedBox(height: 12),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: LinearProgressIndicator(
+                                  value: progress, 
+                                  minHeight: 7, 
+                                  backgroundColor: isDark ? Colors.white10 : Colors.grey[100], 
+                                  valueColor: AlwaysStoppedAnimation<Color>(progress >= 1.0 ? Colors.green : startBlue)
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            if (item.savedAmount > 0)
-                              _buildActionBtn(context, Icons.savings_outlined, isDark ? Colors.orange.withOpacity(0.1) : Colors.orange[50]!, Colors.orange, () => _showTarikDialog(context, item)),
-                            const SizedBox(width: 8),
-                            _buildActionBtn(context, Icons.delete_outline, isDark ? Colors.red.withOpacity(0.1) : Colors.red[50]!, Colors.red, () => _deleteItem(item.id)),
-                          ],
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        gradient: progress >= 1.0 
+                                          ? const LinearGradient(colors: [Colors.green, Color(0xFF00C853)]) 
+                                          : LinearGradient(colors: [startBlue, endBlue]), 
+                                        borderRadius: BorderRadius.circular(12)
+                                      ),
+                                      child: ElevatedButton(
+                                        onPressed: progress >= 1.0 ? null : () => _showNabungDialog(context, item),
+                                        style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent),
+                                        child: Text(progress >= 1.0 ? "Impian Tercapai! 🎉" : "Tabung Sekarang", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13)),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _buildActionBtn(context, Icons.receipt_long_rounded, isDark ? Colors.blue.withOpacity(0.1) : Colors.blue[50]!, startBlue, () => _showDetailSheet(context, item)),
+                                  if (item.savedAmount > 0) ...[
+                                    const SizedBox(width: 8),
+                                    _buildActionBtn(context, Icons.savings_outlined, isDark ? Colors.orange.withOpacity(0.1) : Colors.orange[50]!, Colors.orange, () => _showTarikDialog(context, item)),
+                                  ],
+                                  const SizedBox(width: 8),
+                                  _buildActionBtn(context, Icons.delete_outline, isDark ? Colors.red.withOpacity(0.1) : Colors.red[50]!, Colors.red, () => _deleteItem(item.id)),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
-                      ],
+                      ),
                     ),
                   );
                 },

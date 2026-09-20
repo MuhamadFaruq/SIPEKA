@@ -58,6 +58,23 @@ class QuickActionProvider with ChangeNotifier {
     }
   }
 
+  /// Update hanya ikon dari quick action tertentu
+  Future<void> updateIconOnly(String id, IconData newIcon) async {
+    final index = _actions.indexWhere((action) => action.id == id);
+    if (index != -1) {
+      final old = _actions[index];
+      _actions[index] = QuickActionEntity(
+        id: old.id,
+        label: old.label,
+        amount: old.amount,
+        category: old.category,
+        icon: newIcon,
+      );
+      await repository.saveQuickActions(_actions);
+      notifyListeners();
+    }
+  }
+
   Future<void> clearAll() async {
     _actions = [];
     await repository.saveQuickActions(_actions);

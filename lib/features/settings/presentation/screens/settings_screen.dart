@@ -32,6 +32,7 @@ import 'package:sipeka/features/wallet/presentation/screens/manage_wallets_scree
 import 'package:sipeka/features/bill/presentation/controllers/bill_provider.dart';
 import 'package:sipeka/features/bill/presentation/screens/manage_bills_screen.dart';
 import 'package:sipeka/features/transaction/presentation/screens/notification_tracker_screen.dart';
+import 'package:sipeka/features/settings/presentation/screens/manage_icons_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -394,6 +395,18 @@ class SettingsScreen extends StatelessWidget {
             child: Column(
               children: [
                 _buildListTile(context: context, icon: Icons.flash_on, title: "Kelola Jalan Pintas", subtitle: "Tambah atau hapus transaksi cepat di Home", color: Colors.orange, onTap: () => _showManageShortcutsDialog(context)),
+                const Divider(height: 1),
+                _buildListTile(
+                  context: context,
+                  icon: Icons.emoji_symbols_rounded,
+                  title: "Kelola Ikon",
+                  subtitle: "Kustomisasi ikon kategori, dompet & pintasan",
+                  color: Colors.deepPurple,
+                  onTap: () => Navigator.push(
+                    context,
+                    SmoothPageRoute(child: const ManageIconsScreen()),
+                  ),
+                ),
                 const Divider(height: 1),
                 _buildListTile(
                   context: context,
@@ -830,12 +843,20 @@ class SettingsScreen extends StatelessWidget {
                 if (nameController.text.isNotEmpty && amountController.text.isNotEmpty && selectedCategory != null) {
                   final provider = Provider.of<QuickActionProvider>(context, listen: false);
                   String cleanAmount = amountController.text.replaceAll('.', '');
-                  double parsedAmount = double.parse(cleanAmount);
-                  final selectedBudget = budgetProvider.budgets.firstWhere((b) => b.category == selectedCategory);
+                  double parsedAmount = double.tryParse(cleanAmount) ?? 0;
+                  final budgetMatches = budgetProvider.budgets.where((b) => b.category == selectedCategory);
+                  if (budgetMatches.isEmpty) {
+                    SipekaNotification.showWarning(context, "Kategori anggaran tidak ditemukan!");
+                    return;
+                  }
+                  final selectedBudget = budgetMatches.first;
+                  final iconCode = selectedBudget.iconCode != 0
+                      ? selectedBudget.iconCode
+                      : AppIcons.getIcon(selectedCategory!).codePoint;
                   if (existingAction == null) {
-                    provider.addAction(QuickAction(id: const Uuid().v4(), label: nameController.text, icon: IconData(selectedBudget.iconCode, fontFamily: 'MaterialIcons'), category: selectedCategory!, amount: parsedAmount));
+                    provider.addAction(QuickAction(id: const Uuid().v4(), label: nameController.text, icon: IconData(iconCode, fontFamily: 'MaterialIcons'), category: selectedCategory!, amount: parsedAmount));
                   } else {
-                    provider.updateAction(existingAction.id, nameController.text, parsedAmount, selectedCategory!, IconData(selectedBudget.iconCode, fontFamily: 'MaterialIcons'));
+                    provider.updateAction(existingAction.id, nameController.text, parsedAmount, selectedCategory!, IconData(iconCode, fontFamily: 'MaterialIcons'));
                   }
                   Navigator.pop(ctx);
                   SipekaNotification.showSuccess(context, "Pintasan berhasil disimpan!");

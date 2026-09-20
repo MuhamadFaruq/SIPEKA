@@ -64,60 +64,54 @@ class _FinancialInsightTabCardState extends State<FinancialInsightTabCard> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final active = _tabs[_activeTab];
 
     return Padding(
       padding: const EdgeInsets.only(top: 10, left: 20, right: 20, bottom: 4),
-      child: AnimatedContainer(
-            duration: const Duration(milliseconds: 350),
-            curve: Curves.easeInOut,
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1C1C2E) : Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: active.gradientStart.withOpacity(isDark ? 0.25 : 0.12),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-              border: Border.all(
-                color: active.gradientStart.withOpacity(isDark ? 0.3 : 0.1),
-                width: 1,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.2 : 0.02),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+          border: Border.all(
+            color: Colors.grey.withOpacity(isDark ? 0.08 : 0.04),
+            width: 1,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              height: 150,
+              child: PageView.builder(
+                controller: _pageController,
+                physics: const BouncingScrollPhysics(),
+                itemCount: _virtualTotal,
+                onPageChanged: (i) => setState(() => _activeTab = i % _tabs.length),
+                itemBuilder: (context, index) {
+                  final pageIndex = index % _tabs.length;
+                  switch (pageIndex) {
+                    case 0: return _buildHealthPage(context, isDark);
+                    case 1: return _buildSpendingPage(context, isDark);
+                    case 2: return _buildAiPage(context, isDark);
+                    default: return const SizedBox();
+                  }
+                },
               ),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  height: 150,
-                  child: PageView.builder(
-                    controller: _pageController,
-                    physics: const BouncingScrollPhysics(),
-                    itemCount: _virtualTotal,
-                    onPageChanged: (i) => setState(() => _activeTab = i % _tabs.length),
-                    itemBuilder: (context, index) {
-                      final pageIndex = index % _tabs.length;
-                      switch (pageIndex) {
-                        case 0: return _buildHealthPage(context, isDark);
-                        case 1: return _buildSpendingPage(context, isDark);
-                        case 2: return _buildAiPage(context, isDark);
-                        default: return const SizedBox();
-                      }
-                    },
-                  ),
-                ),
-                _buildDotIndicators(active),
-              ],
-            ),
+            _buildDotIndicators(),
+          ],
         ),
+      ),
     );
   }
 
-
-
-
-  Widget _buildDotIndicators(_TabMeta active) {
+  Widget _buildDotIndicators() {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10, top: 2),
       child: Row(
@@ -125,19 +119,14 @@ class _FinancialInsightTabCardState extends State<FinancialInsightTabCard> {
         children: List.generate(_tabs.length, (i) {
           final isActive = _activeTab == i;
           return AnimatedContainer(
-            duration: const Duration(milliseconds: 280),
+            duration: const Duration(milliseconds: 250),
             curve: Curves.easeInOut,
             margin: const EdgeInsets.symmetric(horizontal: 3),
-            width: isActive ? 18 : 6,
+            width: isActive ? 16 : 6,
             height: 6,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(3),
-              gradient: isActive
-                  ? LinearGradient(
-                      colors: [active.gradientStart, active.gradientEnd],
-                    )
-                  : null,
-              color: isActive ? null : Colors.grey.withOpacity(0.3),
+              color: isActive ? const Color(0xFF007AFF) : Colors.grey.withOpacity(0.25),
             ),
           );
         }),
@@ -231,16 +220,16 @@ class _FinancialInsightTabCardState extends State<FinancialInsightTabCard> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.psychology_rounded,
-                        size: 16, color: Color(0xFF9C40FF)),
+                    const Icon(Icons.analytics_outlined,
+                        size: 16, color: Color(0xFF007AFF)),
                     const SizedBox(width: 6),
                     Text(
-                      'SIPEKA AI',
+                      'Analisis Finansial',
                       style: GoogleFonts.nunito(
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
-                        color: const Color(0xFF9C40FF),
-                        letterSpacing: 0.5,
+                        color: const Color(0xFF007AFF),
+                        letterSpacing: 0.3,
                       ),
                     ),
                     const Spacer(),
@@ -265,14 +254,10 @@ class _FinancialInsightTabCardState extends State<FinancialInsightTabCard> {
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF9C40FF).withOpacity(0.05),
-                      borderRadius: const BorderRadius.only(
-                        topRight: Radius.circular(16),
-                        bottomLeft: Radius.circular(16),
-                        bottomRight: Radius.circular(16),
-                      ),
+                      color: isDark ? Colors.white.withOpacity(0.04) : Colors.grey.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: const Color(0xFF9C40FF).withOpacity(0.12),
+                        color: Colors.grey.withOpacity(isDark ? 0.12 : 0.08),
                         width: 1,
                       ),
                     ),
@@ -287,7 +272,7 @@ class _FinancialInsightTabCardState extends State<FinancialInsightTabCard> {
                                   borderRadius: BorderRadius.circular(4),
                                   child: const LinearProgressIndicator(
                                     minHeight: 2,
-                                    color: Color(0xFF9C40FF),
+                                    color: Color(0xFF007AFF),
                                     backgroundColor: Colors.transparent,
                                   ),
                                 ),
@@ -349,18 +334,16 @@ class _FinancialInsightTabCardState extends State<FinancialInsightTabCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              _buildAiChip('Split Bill AI', Icons.receipt_long_rounded,
-                  const Color(0xFF007AFF)),
-              const SizedBox(width: 8),
-              _buildAiChip('AI Konsultan', Icons.psychology_rounded,
-                  const Color(0xFF9C40FF)),
-            ],
+          Text(
+            'Layanan & Fitur',
+            style: GoogleFonts.nunito(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
           ),
-          const SizedBox(height: 7),
+          const SizedBox(height: 8),
           Expanded(
-
             child: Row(
               children: [
                 _buildAiFeatureTile(
@@ -396,32 +379,6 @@ class _FinancialInsightTabCardState extends State<FinancialInsightTabCard> {
                   ),
                 ),
               ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAiChip(String label, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.25), width: 1),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 11, color: color),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: GoogleFonts.nunito(
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-              color: color,
             ),
           ),
         ],

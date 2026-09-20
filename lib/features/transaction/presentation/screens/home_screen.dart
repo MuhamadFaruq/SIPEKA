@@ -116,8 +116,9 @@ class _HomeScreenState extends State<HomeScreen> {
     var status = await Permission.microphone.status;
     if (status.isDenied) {
       if (await Permission.microphone.request().isDenied) {
-        if (mounted)
+        if (mounted) {
           SipekaNotification.showWarning(context, "Izin mikrofon ditolak.");
+        }
         return;
       }
     }
@@ -127,9 +128,10 @@ class _HomeScreenState extends State<HomeScreen> {
         onStatus: (status) => debugPrint('Status Voice: $status'),
         onError: (error) {
           debugPrint('Error Voice: $error');
-          if (mounted)
+          if (mounted) {
             SipekaNotification.showWarning(
                 context, "Gagal memulai mikrofon: ${error.errorMsg}");
+          }
         },
       );
 
@@ -304,14 +306,16 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         );
       } else {
-        if (mounted)
+        if (mounted) {
           SipekaNotification.showWarning(
               context, "Fitur suara tidak tersedia.");
+        }
       }
     } catch (e) {
       debugPrint("Fatal Error Voice: $e");
-      if (mounted)
+      if (mounted) {
         SipekaNotification.showWarning(context, "Gagal memulai mikrofon.");
+      }
     }
   }
   // Logika _processVoiceData dan _showCategorySelector sudah dipindah ke TransactionHelper
@@ -429,10 +433,14 @@ class _HomeScreenState extends State<HomeScreen> {
                           double amt = double.tryParse(cleanValue) ?? 0;
 
                           if (selectedKategori != null && amt > 0) {
-                            int iconCode = budgetProvider.budgets
-                                .firstWhere(
-                                    (b) => b.category == selectedKategori)
-                                .iconCode;
+                            final budgetMatches = budgetProvider.budgets
+                                .where(
+                                    (b) => b.category == selectedKategori);
+                            if (budgetMatches.isEmpty) return;
+                            int iconCode = budgetMatches.first.iconCode;
+                            if (iconCode == 0) {
+                              iconCode = AppIcons.getIcon(selectedKategori!).codePoint;
+                            }
 
                             quickActionProvider.addAction(QuickAction(
                               id: const Uuid().v4(),
@@ -508,15 +516,20 @@ class _HomeScreenState extends State<HomeScreen> {
     final double totalBalance = provider.getTotalBalance(wallets);
 
     String financialStatus;
-    if (totalBalance <= 0) {
-      financialStatus = "Waduh, Uangmu Habis! Cari Cuan Dulu Yuk.";
+    Color statusColor;
+    if (provider.transactions.isEmpty && totalBalance <= 0) {
+      financialStatus = "Mulai Catat Transaksi";
+      statusColor = const Color(0xFF64B5F6);
+    } else if (totalBalance <= 0) {
+      financialStatus = "Saldo Habis";
+      statusColor = AppColors.expenseRed;
     } else if (totalBalance < 500000) {
-      financialStatus = "Uangmu Tinggal Dikit Lho - Irit Dulu Ya!";
+      financialStatus = "Saldo Menipis";
+      statusColor = const Color(0xFFFFB300);
     } else {
-      financialStatus = "Uangmu Aman, Masih Bisa Jajan";
+      financialStatus = "Keuangan Aman";
+      statusColor = AppColors.incomeGreen;
     }
-    final Color statusColor =
-        totalBalance < 500000 ? AppColors.expenseRed : AppColors.incomeGreen;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -604,35 +617,49 @@ class _HomeScreenState extends State<HomeScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.18),
+                          width: 0.5,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 7,
+                            height: 7,
+                            decoration: BoxDecoration(
                               color: statusColor,
                               shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
-                                  color: statusColor.withOpacity(0.6),
-                                  blurRadius: 6,
+                                  color: statusColor.withOpacity(0.7),
+                                  blurRadius: 4,
                                   spreadRadius: 1,
                                 )
-                              ]),
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            statusText,
-                            style: GoogleFonts.nunito(
-                              fontSize: 12,
-                              color: Colors.white.withOpacity(0.85),
-                              fontWeight: FontWeight.w600,
+                              ],
                             ),
-                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 5),
+                          Flexible(
+                            child: Text(
+                              statusText,
+                              style: GoogleFonts.nunito(
+                                fontSize: 11,
+                                color: Colors.white.withOpacity(0.95),
+                                fontWeight: FontWeight.w700,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),

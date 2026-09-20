@@ -592,7 +592,10 @@ class _NotificationTrackerScreenState extends State<NotificationTrackerScreen> {
                           });
 
                           // Simpan transaksi
-                          final selectedCategory = categories.firstWhere((c) => c.id == selectedCategoryId).name;
+                          final categoryMatches = categories.where((c) => c.id == selectedCategoryId);
+                          final selectedCategory = categoryMatches.isNotEmpty 
+                              ? categoryMatches.first.name 
+                              : selectedCategoryId ?? "Lainnya";
 
                           final tx = TransactionEntity(
                             id: const Uuid().v4(),

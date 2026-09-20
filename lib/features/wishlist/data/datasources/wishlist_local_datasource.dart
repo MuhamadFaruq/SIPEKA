@@ -1,5 +1,6 @@
 import 'package:sipeka/core/database/database_helper.dart';
 import '../models/wishlist_model.dart';
+import '../models/wishlist_history_model.dart';
 
 abstract class WishlistLocalDataSource {
   Future<List<WishlistModel>> getWishlist();
@@ -7,6 +8,9 @@ abstract class WishlistLocalDataSource {
   Future<void> updateSavings(int id, double newAmount);
   Future<void> deleteWishlist(int id);
   Future<void> clearWishlists();
+  Future<void> insertWishlistHistory(WishlistHistoryModel history);
+  Future<List<WishlistHistoryModel>> getHistoryByWishlistId(String wishlistId);
+  Future<List<WishlistHistoryModel>> getAllWishlistHistory();
 }
 
 class WishlistLocalDataSourceImpl implements WishlistLocalDataSource {
@@ -40,5 +44,22 @@ class WishlistLocalDataSourceImpl implements WishlistLocalDataSource {
   @override
   Future<void> clearWishlists() async {
     await dbHelper.clearWishlistTable();
+  }
+
+  @override
+  Future<void> insertWishlistHistory(WishlistHistoryModel history) async {
+    await dbHelper.insertWishlistHistory(history.toMap());
+  }
+
+  @override
+  Future<List<WishlistHistoryModel>> getHistoryByWishlistId(String wishlistId) async {
+    final maps = await dbHelper.getWishlistHistoryByWishlistId(wishlistId);
+    return maps.map((map) => WishlistHistoryModel.fromMap(map)).toList();
+  }
+
+  @override
+  Future<List<WishlistHistoryModel>> getAllWishlistHistory() async {
+    final maps = await dbHelper.getAllWishlistHistory();
+    return maps.map((map) => WishlistHistoryModel.fromMap(map)).toList();
   }
 }

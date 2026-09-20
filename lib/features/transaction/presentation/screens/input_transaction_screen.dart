@@ -394,7 +394,9 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
     if (_type == 'Pengeluaran') {
       categoriesToShow = budgetProvider.budgets.map((b) {
         return <String, dynamic>{
-          'icon': IconData(b.iconCode, fontFamily: 'MaterialIcons'),
+          'icon': b.iconCode != 0
+              ? IconData(b.iconCode, fontFamily: 'MaterialIcons')
+              : AppIcons.getIcon(b.category),
           'label': b.category,
           'val': b.category
         };

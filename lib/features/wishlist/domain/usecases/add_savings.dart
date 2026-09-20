@@ -5,7 +5,7 @@ class AddSavingsUseCase {
 
   AddSavingsUseCase(this.repository);
 
-  Future<void> call(String id, double amount) {
-    return repository.addSavings(id, amount);
+  Future<void> call(String id, double amount, {String? notes}) {
+    return repository.addSavings(id, amount, notes: notes);
   }
 }

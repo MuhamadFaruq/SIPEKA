@@ -24,11 +24,13 @@ class WidgetService {
       // Simpan data di SharedPreferences yang dibagikan dengan Native Android
       await HomeWidget.saveWidgetData<String>('total_saldo', formattedSaldo);
       
-      // Memicu native widget untuk memperbarui tampilannya
-      for (var name in _androidWidgetNames) {
-        await HomeWidget.updateWidget(
-          androidName: name,
-        );
+      // Memicu native widget untuk memperbarui tampilannya (khusus Android)
+      if (Platform.isAndroid) {
+        for (var name in _androidWidgetNames) {
+          await HomeWidget.updateWidget(
+            androidName: name,
+          );
+        }
       }
       debugPrint("Widget saldo diperbarui: $formattedSaldo");
     } catch (e) {

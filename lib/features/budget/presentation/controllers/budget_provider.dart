@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sipeka/core/database/database_helper.dart';
 import 'package:sipeka/core/services/sync_service.dart';
+import 'package:sipeka/core/constants/constants.dart';
 
 import '../../domain/entities/budget_entity.dart';
 import '../../domain/usecases/add_budget.dart';
@@ -67,6 +68,7 @@ class BudgetProvider with ChangeNotifier {
     try {
       final dataList = await getBudgetsUseCase();
       _budgets = List<BudgetEntity>.from(dataList);
+      AppIcons.registerBudgets(_budgets);
     } catch (e) {
       debugPrint("Error fetching budgets: $e");
     } finally {
@@ -81,6 +83,7 @@ class BudgetProvider with ChangeNotifier {
 
   Future<void> addBudget(BudgetEntity budget) async {
     _budgets.add(budget);
+    AppIcons.registerCategoryIcon(budget.category, budget.iconCode);
     notifyListeners();
 
     try {
@@ -90,6 +93,7 @@ class BudgetProvider with ChangeNotifier {
       // Rollback jika gagal
       debugPrint("BUDGET_PROVIDER: ERROR simpan anggaran '${budget.category}': $e");
       _budgets.removeWhere((b) => b.id == budget.id);
+      AppIcons.unregisterCategoryIcon(budget.category);
       notifyListeners();
       rethrow;
     }
@@ -108,6 +112,10 @@ class BudgetProvider with ChangeNotifier {
         iconCode: iconCode,
         usedAmount: currentUsed 
       );
+      if (oldBudget.category.toLowerCase().trim() != newCategory.toLowerCase().trim()) {
+        AppIcons.unregisterCategoryIcon(oldBudget.category);
+      }
+      AppIcons.registerCategoryIcon(newCategory, iconCode);
       notifyListeners();
 
       try {
@@ -121,6 +129,7 @@ class BudgetProvider with ChangeNotifier {
         debugPrint("Error updating budget: $e");
         // Rollback memory jika gagal
         _budgets[index] = oldBudget;
+        AppIcons.registerCategoryIcon(oldBudget.category, oldBudget.iconCode);
         notifyListeners();
         rethrow;
       }
@@ -132,6 +141,7 @@ class BudgetProvider with ChangeNotifier {
     if (index != -1) {
       final oldBudget = _budgets[index];
       _budgets.removeAt(index);
+      AppIcons.unregisterCategoryIcon(oldBudget.category);
       notifyListeners();
       try {
         await deleteBudgetUseCase(id);
@@ -139,6 +149,7 @@ class BudgetProvider with ChangeNotifier {
         debugPrint("Error deleting budget: $e");
         // Rollback memory jika gagal
         _budgets.insert(index, oldBudget);
+        AppIcons.registerCategoryIcon(oldBudget.category, oldBudget.iconCode);
         notifyListeners();
         rethrow;
       }
@@ -146,11 +157,13 @@ class BudgetProvider with ChangeNotifier {
   }
 
   int getIconByCategory(String categoryName) {
-    final index = _budgets.indexWhere((b) => b.category == categoryName);
-    if (index != -1) {
+    final index = _budgets.indexWhere(
+      (b) => b.category.toLowerCase().trim() == categoryName.toLowerCase().trim(),
+    );
+    if (index != -1 && _budgets[index].iconCode != 0) {
       return _budgets[index].iconCode;
     }
-    return Icons.category.codePoint; 
+    return AppIcons.getIcon(categoryName).codePoint; 
   }
 
   void addExpense(String budgetId, double amount) {

@@ -43,7 +43,7 @@ class _SplitBillScreenState extends State<SplitBillScreen> {
   
   final TextEditingController _friendNameController = TextEditingController();
   final TextEditingController _paymentDetailsController = TextEditingController(
-    text: "Transfer Bank BCA\nNo. Rekening: 123456789\na.n. Muhamad Faruq",
+    text: "Transfer Bank\nNo. Rekening: -\na.n. -",
   );
   
   bool _isLoading = false;

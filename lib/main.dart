@@ -132,7 +132,18 @@ class SIPEKAApp extends StatelessWidget {
         // Cari baris ini di main.dart dan ubah:
         ChangeNotifierProvider(create: (_) => QuickActionProvider()..loadActions()),
         ChangeNotifierProvider(create: (_) => WalletProvider()..fetchAndSetWallets()),
-        ChangeNotifierProvider(create: (ctx) => BillProvider()..processRecurringBills(ctx)),
+        ChangeNotifierProvider(create: (ctx) {
+          final billProvider = BillProvider();
+          // Tunda pemrosesan agar semua Provider siap
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            try {
+              billProvider.processRecurringBills(ctx);
+            } catch (e) {
+              debugPrint("Error processing recurring bills: $e");
+            }
+          });
+          return billProvider;
+        }),
         ChangeNotifierProvider(create: (_) => FinancialHealthProvider()..calculateHealthScore()),
       ],
       child: Consumer<ThemeProvider>(
@@ -154,7 +165,7 @@ class SIPEKAApp extends StatelessWidget {
             builder: (context, child) {
               final mediaQueryData = MediaQuery.of(context);
               // Clamp text scale to prevent layout overflow while keeping accessibility reasonable
-              final constrainedTextScale = mediaQueryData.textScaleFactor.clamp(0.85, 1.15);
+              final constrainedTextScale = mediaQueryData.textScaler.scale(1.0).clamp(0.85, 1.15);
               return MediaQuery(
                 data: mediaQueryData.copyWith(
                   textScaler: TextScaler.linear(constrainedTextScale),

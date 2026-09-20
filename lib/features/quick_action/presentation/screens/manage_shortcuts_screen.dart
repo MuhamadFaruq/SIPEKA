@@ -8,6 +8,7 @@ import 'package:sipeka/features/budget/presentation/controllers/budget_provider.
 import 'package:sipeka/features/quick_action/domain/entities/quick_action_entity.dart';
 import 'package:sipeka/core/utils/formatters.dart';
 import 'package:sipeka/core/services/notifications.dart';
+import 'package:sipeka/core/constants/constants.dart';
 import 'package:intl/intl.dart';
 
 class ManageShortcutsScreen extends StatelessWidget {
@@ -206,7 +207,15 @@ class ManageShortcutsScreen extends StatelessWidget {
                       onPressed: () {
                         double amt = double.tryParse(amountController.text.replaceAll('.', '')) ?? 0;
                         if (labelController.text.isNotEmpty && selectedKategori != null && amt > 0) {
-                          final selectedBudget = budgetProvider.budgets.firstWhere((b) => b.category == selectedKategori);
+                          final budgetMatches = budgetProvider.budgets.where((b) => b.category == selectedKategori);
+                          if (budgetMatches.isEmpty) {
+                            SipekaNotification.showWarning(context, "Kategori anggaran tidak ditemukan!");
+                            return;
+                          }
+                          final selectedBudget = budgetMatches.first;
+                          final iconCode = selectedBudget.iconCode != 0
+                              ? selectedBudget.iconCode
+                              : AppIcons.getIcon(selectedKategori!).codePoint;
                           
                           if (isEdit) {
                             quickActionProvider.updateAction(
@@ -214,7 +223,7 @@ class ManageShortcutsScreen extends StatelessWidget {
                               labelController.text,
                               amt,
                               selectedKategori!,
-                              IconData(selectedBudget.iconCode, fontFamily: 'MaterialIcons'),
+                              IconData(iconCode, fontFamily: 'MaterialIcons'),
                             );
                           } else {
                             quickActionProvider.addAction(QuickAction(
@@ -222,7 +231,7 @@ class ManageShortcutsScreen extends StatelessWidget {
                               label: labelController.text,
                               category: selectedKategori!,
                               amount: amt,
-                              icon: IconData(selectedBudget.iconCode, fontFamily: 'MaterialIcons'),
+                              icon: IconData(iconCode, fontFamily: 'MaterialIcons'),
                             ));
                           }
                           Navigator.pop(ctx);

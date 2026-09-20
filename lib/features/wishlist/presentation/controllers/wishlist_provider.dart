@@ -3,10 +3,12 @@ import 'package:sipeka/core/database/database_helper.dart';
 import 'package:sipeka/core/services/sync_service.dart';
 
 import '../../domain/entities/wishlist_entity.dart';
+import '../../domain/entities/wishlist_history_entity.dart';
 import '../../domain/usecases/add_wishlist.dart';
 import '../../domain/usecases/add_savings.dart';
 import '../../domain/usecases/delete_wishlist.dart';
 import '../../domain/usecases/get_wishlist.dart';
+import '../../domain/usecases/get_wishlist_history.dart';
 import '../../data/repositories/wishlist_repository_impl.dart';
 import '../../data/datasources/wishlist_local_datasource.dart';
 import '../../data/datasources/wishlist_remote_datasource.dart';
@@ -16,6 +18,7 @@ class WishlistProvider with ChangeNotifier {
   final AddWishlistUseCase addWishlistUseCase;
   final AddSavingsUseCase addSavingsUseCase;
   final DeleteWishlistUseCase deleteWishlistUseCase;
+  final GetWishlistHistoryUseCase getWishlistHistoryUseCase;
 
   List<WishlistEntity> _items = [];
 
@@ -29,6 +32,7 @@ class WishlistProvider with ChangeNotifier {
     AddWishlistUseCase? addWishlistUseCase,
     AddSavingsUseCase? addSavingsUseCase,
     DeleteWishlistUseCase? deleteWishlistUseCase,
+    GetWishlistHistoryUseCase? getWishlistHistoryUseCase,
   })  : getWishlistUseCase = getWishlistUseCase ??
             GetWishlistUseCase(
               WishlistRepositoryImpl(
@@ -56,6 +60,13 @@ class WishlistProvider with ChangeNotifier {
                 localDataSource: WishlistLocalDataSourceImpl(DatabaseHelper.instance),
                 remoteDataSource: WishlistRemoteDataSourceImpl(SyncService()),
               ),
+            ),
+        getWishlistHistoryUseCase = getWishlistHistoryUseCase ??
+            GetWishlistHistoryUseCase(
+              WishlistRepositoryImpl(
+                localDataSource: WishlistLocalDataSourceImpl(DatabaseHelper.instance),
+                remoteDataSource: WishlistRemoteDataSourceImpl(SyncService()),
+              ),
             );
 
   Future<void> fetchAndSetWishlist() async {
@@ -79,7 +90,7 @@ class WishlistProvider with ChangeNotifier {
     }
   }
 
-  Future<void> addSavings(String id, double amount) async {
+  Future<void> addSavings(String id, double amount, {String? note}) async {
     final index = _items.indexWhere((item) => item.id == id);
     if (index != -1) {
       double oldAmount = _items[index].savedAmount;
@@ -88,7 +99,7 @@ class WishlistProvider with ChangeNotifier {
       notifyListeners();
 
       try {
-        await addSavingsUseCase(id, amount);
+        await addSavingsUseCase(id, amount, notes: note);
       } catch (e) {
         debugPrint("Error adding savings: $e");
         // Rollback memory jika gagal
@@ -99,7 +110,7 @@ class WishlistProvider with ChangeNotifier {
     }
   }
 
-  Future<void> withdrawSavings(String id, double amount) async {
+  Future<void> withdrawSavings(String id, double amount, {String? note}) async {
     final index = _items.indexWhere((item) => item.id == id);
     if (index != -1) {
       double oldAmount = _items[index].savedAmount;
@@ -115,7 +126,7 @@ class WishlistProvider with ChangeNotifier {
 
       try {
         // Gunakan addSavings dengan nilai negatif untuk mengurangi
-        await addSavingsUseCase(id, -amount);
+        await addSavingsUseCase(id, -amount, notes: note);
       } catch (e) {
         debugPrint("Error withdrawing savings: $e");
         // Rollback memory jika gagal
@@ -124,6 +135,14 @@ class WishlistProvider with ChangeNotifier {
         rethrow;
       }
     }
+  }
+
+  Future<List<WishlistHistoryEntity>> getHistoryForWishlist(String wishlistId) async {
+    return await getWishlistHistoryUseCase(wishlistId: wishlistId);
+  }
+
+  Future<List<WishlistHistoryEntity>> getAllHistory() async {
+    return await getWishlistHistoryUseCase();
   }
 
   Future<void> deleteWishlist(String id) async {
