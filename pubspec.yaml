@@ -11,8 +11,6 @@ dependencies:
     sdk: flutter
 
   another_flushbar: ^1.12.3
-  sqflite: ^2.4.1
-  path: ^1.9.0
 
   # Firebase — Upgrade ke v4+ untuk kompatibilitas firebase_ai
   firebase_core: ^4.0.0

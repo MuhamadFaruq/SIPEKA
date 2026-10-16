@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:sipeka/core/database/database_helper.dart';
-import 'package:sipeka/core/services/sync_service.dart';
 
 import '../../domain/entities/debt_entity.dart';
 import '../../domain/usecases/add_debt.dart';
@@ -9,8 +7,6 @@ import '../../domain/usecases/get_debts.dart';
 import '../../domain/usecases/update_debt.dart';
 import '../../domain/usecases/mark_debt_paid.dart';
 import '../../data/repositories/debt_repository_impl.dart';
-import '../../data/datasources/debt_local_datasource.dart';
-import '../../data/datasources/debt_remote_datasource.dart';
 
 class DebtProvider with ChangeNotifier {
   final GetDebtsUseCase getDebtsUseCase;
@@ -38,40 +34,15 @@ class DebtProvider with ChangeNotifier {
     DeleteDebtUseCase? deleteDebtUseCase,
     MarkDebtPaidUseCase? markDebtPaidUseCase,
   })  : getDebtsUseCase = getDebtsUseCase ??
-            GetDebtsUseCase(
-              DebtRepositoryImpl(
-                localDataSource: DebtLocalDataSourceImpl(DatabaseHelper.instance),
-                remoteDataSource: DebtRemoteDataSourceImpl(SyncService()),
-              ),
-            ),
+            GetDebtsUseCase(DebtRepositoryImpl()),
         addDebtUseCase = addDebtUseCase ??
-            AddDebtUseCase(
-              DebtRepositoryImpl(
-                localDataSource: DebtLocalDataSourceImpl(DatabaseHelper.instance),
-                remoteDataSource: DebtRemoteDataSourceImpl(SyncService()),
-              ),
-            ),
+            AddDebtUseCase(DebtRepositoryImpl()),
         updateDebtUseCase = updateDebtUseCase ??
-            UpdateDebtUseCase(
-              DebtRepositoryImpl(
-                localDataSource: DebtLocalDataSourceImpl(DatabaseHelper.instance),
-                remoteDataSource: DebtRemoteDataSourceImpl(SyncService()),
-              ),
-            ),
+            UpdateDebtUseCase(DebtRepositoryImpl()),
         deleteDebtUseCase = deleteDebtUseCase ??
-            DeleteDebtUseCase(
-              DebtRepositoryImpl(
-                localDataSource: DebtLocalDataSourceImpl(DatabaseHelper.instance),
-                remoteDataSource: DebtRemoteDataSourceImpl(SyncService()),
-              ),
-            ),
+            DeleteDebtUseCase(DebtRepositoryImpl()),
         markDebtPaidUseCase = markDebtPaidUseCase ??
-            MarkDebtPaidUseCase(
-              DebtRepositoryImpl(
-                localDataSource: DebtLocalDataSourceImpl(DatabaseHelper.instance),
-                remoteDataSource: DebtRemoteDataSourceImpl(SyncService()),
-              ),
-            );
+            MarkDebtPaidUseCase(DebtRepositoryImpl());
 
   Future<void> fetchAndSetDebts() async {
     try {
@@ -177,6 +148,6 @@ class DebtProvider with ChangeNotifier {
   void clearAllData() {
     _debts = [];
     notifyListeners();
-    DatabaseHelper.instance.clearDebtTable();
+    DebtRepositoryImpl().dataSource.clearDebts();
   }
 }

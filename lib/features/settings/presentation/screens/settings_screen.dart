@@ -16,15 +16,14 @@ import 'package:sipeka/features/transaction/presentation/controllers/transaction
 import 'package:sipeka/features/budget/presentation/controllers/budget_provider.dart';
 import 'package:sipeka/features/debt/presentation/controllers/debt_provider.dart';
 import 'package:sipeka/features/quick_action/presentation/controllers/quick_action_provider.dart';
-import 'package:sipeka/features/wishlist/presentation/controllers/wishlist_provider.dart';
 import 'package:sipeka/features/quick_action/domain/entities/quick_action_entity.dart';
-import 'package:sipeka/core/database/database_helper.dart'; 
+import 'package:sipeka/features/wishlist/presentation/controllers/wishlist_provider.dart';
+import 'package:sipeka/core/services/firestore_service.dart'; 
 import 'package:sipeka/core/services/notifications.dart'; 
 import 'package:sipeka/core/services/notification_service.dart';
 import 'package:sipeka/core/services/auth_service.dart'; 
 import 'package:sipeka/core/theme/theme_provider.dart';
 import 'package:sipeka/core/theme/app_theme.dart' hide AppColors;
-import 'package:sipeka/core/services/sync_service.dart';
 import 'package:uuid/uuid.dart';
 import 'package:sipeka/core/constants/constants.dart';
 import 'package:sipeka/features/wallet/presentation/controllers/wallet_provider.dart';
@@ -498,10 +497,20 @@ class SettingsScreen extends StatelessWidget {
                                     builder: (c) => const Center(child: CircularProgressIndicator()),
                                   );
                                   try {
+                                    final prevUid = FirestoreService.instance.userId;
                                     final user = await authService.signInWithGoogle();
                                     if (!context.mounted) return;
                                     Navigator.pop(context); // Tutup loading dialog
                                     if (user != null) {
+                                      await FirestoreService.instance.migrateDataBetweenUsers(prevUid, user.uid);
+                                      if (context.mounted) {
+                                        Provider.of<TransactionProvider>(context, listen: false).fetchAndSetTransactions();
+                                        Provider.of<BudgetProvider>(context, listen: false).fetchAndSetBudgets();
+                                        Provider.of<DebtProvider>(context, listen: false).fetchAndSetDebts();
+                                        Provider.of<WishlistProvider>(context, listen: false).fetchAndSetWishlist();
+                                        Provider.of<WalletProvider>(context, listen: false).fetchAndSetWallets();
+                                        Provider.of<BillProvider>(context, listen: false).fetchBills();
+                                      }
                                       SipekaNotification.showSuccess(context, "Login berhasil!");
                                       Future.delayed(const Duration(milliseconds: 300), () {
                                         if (!context.mounted) return;
@@ -1055,10 +1064,20 @@ class SettingsScreen extends StatelessWidget {
                 builder: (c) => const Center(child: CircularProgressIndicator()),
               );
               try {
+                final prevUid = FirestoreService.instance.userId;
                 final user = await auth.signInWithGoogle();
                 if (!context.mounted) return;
                 Navigator.pop(context); // Tutup loading dialog
                 if (user != null) {
+                  await FirestoreService.instance.migrateDataBetweenUsers(prevUid, user.uid);
+                  if (context.mounted) {
+                    Provider.of<TransactionProvider>(context, listen: false).fetchAndSetTransactions();
+                    Provider.of<BudgetProvider>(context, listen: false).fetchAndSetBudgets();
+                    Provider.of<DebtProvider>(context, listen: false).fetchAndSetDebts();
+                    Provider.of<WishlistProvider>(context, listen: false).fetchAndSetWishlist();
+                    Provider.of<WalletProvider>(context, listen: false).fetchAndSetWallets();
+                    Provider.of<BillProvider>(context, listen: false).fetchBills();
+                  }
                   SipekaNotification.showSuccess(context, "Selamat datang, ${user.displayName}!");
                 }
               } catch (e) {
@@ -1141,7 +1160,7 @@ class SettingsScreen extends StatelessWidget {
                 final walletProvider = Provider.of<WalletProvider>(context, listen: false);
                 final billProvider = Provider.of<BillProvider>(context, listen: false);
 
-                await DatabaseHelper.instance.clearAllTables();
+                await FirestoreService.instance.clearAllUserData();
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.clear();
                 await quickActionProvider.clearAll();
@@ -1348,14 +1367,11 @@ class SettingsScreen extends StatelessWidget {
 
     try {
       if (isBackup) {
-        await SyncService().syncAllData();
         if (!context.mounted) return;
         Navigator.pop(context); // Tutup loading dialog
-        SipekaNotification.showSuccess(context, "Data berhasil dicadangkan ke Cloud!");
+        SipekaNotification.showSuccess(context, "Data Anda tersinkronisasi otomatis dengan Firestore secara real-time!");
       } else {
-        await SyncService().restoreAllData();
-        
-        // Refresh Provider lokal agar UI terupdate instan
+        // Refresh Provider lokal dari Firestore
         await transactionProvider.fetchAndSetTransactions();
         await budgetProvider.fetchAndSetBudgets();
         await debtProvider.fetchAndSetDebts();
@@ -1365,7 +1381,7 @@ class SettingsScreen extends StatelessWidget {
 
         if (!context.mounted) return;
         Navigator.pop(context); // Tutup loading dialog
-        SipekaNotification.showSuccess(context, "Data berhasil dipulihkan dari Cloud!");
+        SipekaNotification.showSuccess(context, "Data berhasil dimuat ulang dari Firestore!");
       }
     } catch (e) {
       if (!context.mounted) return;

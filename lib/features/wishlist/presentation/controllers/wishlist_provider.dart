@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:sipeka/core/database/database_helper.dart';
-import 'package:sipeka/core/services/sync_service.dart';
 
 import '../../domain/entities/wishlist_entity.dart';
 import '../../domain/entities/wishlist_history_entity.dart';
@@ -10,8 +8,6 @@ import '../../domain/usecases/delete_wishlist.dart';
 import '../../domain/usecases/get_wishlist.dart';
 import '../../domain/usecases/get_wishlist_history.dart';
 import '../../data/repositories/wishlist_repository_impl.dart';
-import '../../data/datasources/wishlist_local_datasource.dart';
-import '../../data/datasources/wishlist_remote_datasource.dart';
 
 class WishlistProvider with ChangeNotifier {
   final GetWishlistUseCase getWishlistUseCase;
@@ -34,40 +30,15 @@ class WishlistProvider with ChangeNotifier {
     DeleteWishlistUseCase? deleteWishlistUseCase,
     GetWishlistHistoryUseCase? getWishlistHistoryUseCase,
   })  : getWishlistUseCase = getWishlistUseCase ??
-            GetWishlistUseCase(
-              WishlistRepositoryImpl(
-                localDataSource: WishlistLocalDataSourceImpl(DatabaseHelper.instance),
-                remoteDataSource: WishlistRemoteDataSourceImpl(SyncService()),
-              ),
-            ),
+            GetWishlistUseCase(WishlistRepositoryImpl()),
         addWishlistUseCase = addWishlistUseCase ??
-            AddWishlistUseCase(
-              WishlistRepositoryImpl(
-                localDataSource: WishlistLocalDataSourceImpl(DatabaseHelper.instance),
-                remoteDataSource: WishlistRemoteDataSourceImpl(SyncService()),
-              ),
-            ),
+            AddWishlistUseCase(WishlistRepositoryImpl()),
         addSavingsUseCase = addSavingsUseCase ??
-            AddSavingsUseCase(
-              WishlistRepositoryImpl(
-                localDataSource: WishlistLocalDataSourceImpl(DatabaseHelper.instance),
-                remoteDataSource: WishlistRemoteDataSourceImpl(SyncService()),
-              ),
-            ),
+            AddSavingsUseCase(WishlistRepositoryImpl()),
         deleteWishlistUseCase = deleteWishlistUseCase ??
-            DeleteWishlistUseCase(
-              WishlistRepositoryImpl(
-                localDataSource: WishlistLocalDataSourceImpl(DatabaseHelper.instance),
-                remoteDataSource: WishlistRemoteDataSourceImpl(SyncService()),
-              ),
-            ),
+            DeleteWishlistUseCase(WishlistRepositoryImpl()),
         getWishlistHistoryUseCase = getWishlistHistoryUseCase ??
-            GetWishlistHistoryUseCase(
-              WishlistRepositoryImpl(
-                localDataSource: WishlistLocalDataSourceImpl(DatabaseHelper.instance),
-                remoteDataSource: WishlistRemoteDataSourceImpl(SyncService()),
-              ),
-            );
+            GetWishlistHistoryUseCase(WishlistRepositoryImpl());
 
   Future<void> fetchAndSetWishlist() async {
     try {
@@ -83,7 +54,7 @@ class WishlistProvider with ChangeNotifier {
     try {
       await addWishlistUseCase(item);
       debugPrint("WISHLIST_PROVIDER: Berhasil simpan wishlist '${item.title}'");
-      await fetchAndSetWishlist(); // Refresh untuk dapat ID yang diassign DB
+      await fetchAndSetWishlist(); // Refresh untuk dapat ID yang diassign Firestore
     } catch (e) {
       debugPrint("WISHLIST_PROVIDER: ERROR simpan wishlist '${item.title}': $e");
       rethrow;
@@ -167,6 +138,6 @@ class WishlistProvider with ChangeNotifier {
   Future<void> clearAllData() async {
     _items = [];
     notifyListeners();
-    await DatabaseHelper.instance.clearWishlistTable();
+    await WishlistRepositoryImpl().dataSource.clearWishlists();
   }
 }

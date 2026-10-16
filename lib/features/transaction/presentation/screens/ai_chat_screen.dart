@@ -11,7 +11,7 @@ import 'package:sipeka/features/transaction/presentation/controllers/transaction
 import 'package:sipeka/features/budget/presentation/controllers/budget_provider.dart';
 import 'package:sipeka/features/transaction/domain/entities/transaction_type.dart';
 import 'package:sipeka/core/theme/app_theme.dart';
-import 'package:sipeka/core/database/database_helper.dart';
+import 'package:sipeka/core/services/firestore_service.dart';
 import 'package:sipeka/core/services/notifications.dart';
 import 'package:sipeka/features/wallet/presentation/controllers/wallet_provider.dart';
 
@@ -36,9 +36,9 @@ class ChatMessage {
 
   factory ChatMessage.fromMap(Map<String, dynamic> map) {
     return ChatMessage(
-      text: map['text'] as String,
-      isUser: map['is_user'] == 1,
-      timestamp: DateTime.parse(map['timestamp'] as String),
+      text: map['text'] as String? ?? '',
+      isUser: map['is_user'] == 1 || map['is_user'] == true,
+      timestamp: DateTime.tryParse(map['timestamp']?.toString() ?? '') ?? DateTime.now(),
     );
   }
 }
@@ -71,7 +71,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   Future<void> _loadChatHistory() async {
     try {
-      final dbMsgs = await DatabaseHelper.instance.getAllChatMessages();
+      final dbMsgs = await FirestoreService.instance.getAllChatMessages();
       setState(() {
         _messages.clear();
         if (dbMsgs.isEmpty) {
@@ -198,7 +198,7 @@ ${budgetStr.isEmpty ? 'Belum ada anggaran kategori.' : budgetStr}
 
     // Simpan pesan user ke database
     try {
-      await DatabaseHelper.instance.insertChatMessage(userMsg.toMap());
+      await FirestoreService.instance.insertChatMessage(userMsg.toMap());
     } catch (e) {
       debugPrint("Gagal menyimpan pesan user ke DB: $e");
     }
@@ -221,7 +221,7 @@ ${budgetStr.isEmpty ? 'Belum ada anggaran kategori.' : budgetStr}
       _scrollToBottom();
 
       try {
-        await DatabaseHelper.instance.insertChatMessage(aiMsg.toMap());
+        await FirestoreService.instance.insertChatMessage(aiMsg.toMap());
       } catch (e) {
         debugPrint("Gagal menyimpan pesan AI ke DB: $e");
       }
@@ -268,7 +268,7 @@ ${budgetStr.isEmpty ? 'Belum ada anggaran kategori.' : budgetStr}
 
     // Simpan respons AI ke database
     try {
-      await DatabaseHelper.instance.insertChatMessage(aiMsg.toMap());
+      await FirestoreService.instance.insertChatMessage(aiMsg.toMap());
     } catch (e) {
       debugPrint("Gagal menyimpan pesan AI ke DB: $e");
     }
@@ -303,7 +303,7 @@ ${budgetStr.isEmpty ? 'Belum ada anggaran kategori.' : budgetStr}
                 builder: (loadCtx) => const Center(child: CircularProgressIndicator()),
               );
               try {
-                await DatabaseHelper.instance.clearChatMessagesTable();
+                await FirestoreService.instance.clearChatMessages();
                 if (mounted) Navigator.pop(context); // Tutup loading
                 setState(() {
                   _messages.clear();

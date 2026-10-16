@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
-import 'package:sipeka/core/database/database_helper.dart';
+import 'package:sipeka/core/services/firestore_service.dart';
 import 'package:sipeka/core/services/ai_service.dart';
 import 'package:sipeka/core/services/notifications.dart';
 import 'package:sipeka/core/theme/app_theme.dart';
@@ -42,9 +42,9 @@ class _FinancialSimulatorScreenState extends State<FinancialSimulatorScreen> {
 
   void _loadCurrentFinancialStats() async {
     try {
-      final db = DatabaseHelper.instance;
-      final income = await db.getTotalIncomeCurrentMonth();
-      final expense = await db.getTotalExpenseCurrentMonth();
+      final fs = FirestoreService.instance;
+      final income = await fs.getTotalIncomeCurrentMonth();
+      final expense = await fs.getTotalExpenseCurrentMonth();
       setState(() {
         _currentMonthlyIncome = income;
         _currentMonthlyExpense = expense;
@@ -79,9 +79,9 @@ class _FinancialSimulatorScreenState extends State<FinancialSimulatorScreen> {
     try {
       // Pastikan data statistik saat ini sudah siap
       if (!_hasCalculatedCurrentStats) {
-        final db = DatabaseHelper.instance;
-        _currentMonthlyIncome = await db.getTotalIncomeCurrentMonth();
-        _currentMonthlyExpense = await db.getTotalExpenseCurrentMonth();
+        final fs = FirestoreService.instance;
+        _currentMonthlyIncome = await fs.getTotalIncomeCurrentMonth();
+        _currentMonthlyExpense = await fs.getTotalExpenseCurrentMonth();
         _hasCalculatedCurrentStats = true;
       }
 

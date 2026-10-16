@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:sipeka/core/database/database_helper.dart';
+import 'package:sipeka/core/services/firestore_service.dart';
 import '../../domain/entities/wallet_entity.dart';
 import '../../domain/usecases/add_wallet.dart';
 import '../../domain/usecases/delete_wallet.dart';
 import '../../domain/usecases/get_wallets.dart';
 import '../../domain/usecases/update_wallet.dart';
 import '../../data/repositories/wallet_repository_impl.dart';
-import '../../data/datasources/wallet_local_datasource.dart';
 
 class WalletProvider with ChangeNotifier {
   final GetWalletsUseCase getWalletsUseCase;
@@ -26,29 +25,13 @@ class WalletProvider with ChangeNotifier {
     UpdateWalletUseCase? updateWalletUseCase,
     DeleteWalletUseCase? deleteWalletUseCase,
   })  : getWalletsUseCase = getWalletsUseCase ??
-            GetWalletsUseCase(
-              WalletRepositoryImpl(
-                localDataSource: WalletLocalDataSourceImpl(DatabaseHelper.instance),
-              ),
-            ),
+            GetWalletsUseCase(WalletRepositoryImpl()),
         addWalletUseCase = addWalletUseCase ??
-            AddWalletUseCase(
-              WalletRepositoryImpl(
-                localDataSource: WalletLocalDataSourceImpl(DatabaseHelper.instance),
-              ),
-            ),
+            AddWalletUseCase(WalletRepositoryImpl()),
         updateWalletUseCase = updateWalletUseCase ??
-            UpdateWalletUseCase(
-              WalletRepositoryImpl(
-                localDataSource: WalletLocalDataSourceImpl(DatabaseHelper.instance),
-              ),
-            ),
+            UpdateWalletUseCase(WalletRepositoryImpl()),
         deleteWalletUseCase = deleteWalletUseCase ??
-            DeleteWalletUseCase(
-              WalletRepositoryImpl(
-                localDataSource: WalletLocalDataSourceImpl(DatabaseHelper.instance),
-              ),
-            );
+            DeleteWalletUseCase(WalletRepositoryImpl());
 
   Future<void> fetchAndSetWallets() async {
     _isLoading = true;
@@ -56,6 +39,11 @@ class WalletProvider with ChangeNotifier {
     try {
       final dataList = await getWalletsUseCase();
       _wallets = List<WalletEntity>.from(dataList);
+      if (_wallets.isEmpty) {
+        await FirestoreService.instance.seedDefaultWalletsIfNeeded();
+        final dataListRetry = await getWalletsUseCase();
+        _wallets = List<WalletEntity>.from(dataListRetry);
+      }
     } catch (e) {
       debugPrint("Error fetching wallets: $e");
     } finally {
@@ -161,6 +149,6 @@ class WalletProvider with ChangeNotifier {
   Future<void> clearAllData() async {
     _wallets = [];
     notifyListeners();
-    await DatabaseHelper.instance.clearWalletTable();
+    await WalletRepositoryImpl().dataSource.clearWallets();
   }
 }

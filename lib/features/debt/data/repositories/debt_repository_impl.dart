@@ -1,45 +1,42 @@
 import '../../domain/entities/debt_entity.dart';
 import '../../domain/repositories/debt_repository.dart';
-import '../datasources/debt_local_datasource.dart';
-import '../datasources/debt_remote_datasource.dart';
+import '../datasources/debt_firestore_datasource.dart';
 import '../models/debt_model.dart';
 
 class DebtRepositoryImpl implements DebtRepository {
-  final DebtLocalDataSource localDataSource;
-  final DebtRemoteDataSource remoteDataSource;
+  final DebtDataSource dataSource;
 
   DebtRepositoryImpl({
-    required this.localDataSource,
-    required this.remoteDataSource,
-  });
+    DebtDataSource? dataSource,
+  }) : dataSource = dataSource ?? DebtFirestoreDataSource();
 
   @override
   Future<List<DebtEntity>> getDebts() async {
-    return await localDataSource.getDebts();
+    return await dataSource.getDebts();
   }
 
   @override
   Future<void> addDebt(DebtEntity debt) async {
-    await localDataSource.insertDebt(DebtModel.fromEntity(debt));
+    await dataSource.insertDebt(DebtModel.fromEntity(debt));
   }
 
   @override
   Future<void> updateDebt(String id, String name, double amount, String notes) async {
-    await localDataSource.updateDebt(id, name, amount, notes);
+    await dataSource.updateDebt(id, name, amount, notes);
   }
 
   @override
   Future<void> deleteDebt(String id) async {
-    await localDataSource.deleteDebt(id);
+    await dataSource.deleteDebt(id);
   }
 
   @override
   Future<void> markAsPaid(String id, DateTime paidDate) async {
-    await localDataSource.markAsPaid(id, paidDate);
+    await dataSource.markAsPaid(id, paidDate);
   }
 
   @override
   Future<void> clearDebts() async {
-    await localDataSource.clearDebts();
+    await dataSource.clearDebts();
   }
 }

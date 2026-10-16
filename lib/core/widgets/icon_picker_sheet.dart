@@ -100,9 +100,9 @@ class _IconPickerSheetState extends State<IconPickerSheet> {
               children: [
                 Container(
                   padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [accentColor, const Color(0xFF00479E)],
+                      colors: [accentColor, Color(0xFF00479E)],
                     ),
                     shape: BoxShape.circle,
                   ),

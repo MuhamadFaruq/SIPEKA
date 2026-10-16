@@ -15,13 +15,17 @@ class DebtModel extends DebtEntity {
   // --- DATABASE MAPPING ---
   factory DebtModel.fromMap(Map<String, dynamic> map) {
     return DebtModel(
-      id: map['id'] as String,
-      name: map['name'] as String,
-      amount: (map['amount'] as num).toDouble(),
-      date: DateTime.parse(map['date'] as String),
-      type: map['type'] as String,
-      isPaid: map['is_paid'] == 1,
-      paidDate: map['paid_date'] != null ? DateTime.parse(map['paid_date'] as String) : null,
+      id: (map['id'] ?? '').toString(),
+      name: (map['name'] ?? '').toString(),
+      amount: (map['amount'] as num?)?.toDouble() ?? 0.0,
+      date: map['date'] != null
+          ? DateTime.tryParse(map['date'].toString()) ?? DateTime.now()
+          : DateTime.now(),
+      type: (map['type'] ?? 'payable').toString(),
+      isPaid: map['is_paid'] == 1 || map['is_paid'] == true || map['isPaid'] == true,
+      paidDate: map['paid_date'] != null
+          ? DateTime.tryParse(map['paid_date'].toString())
+          : (map['paidDate'] != null ? DateTime.tryParse(map['paidDate'].toString()) : null),
       notes: map['notes'] as String?,
     );
   }
@@ -42,13 +46,17 @@ class DebtModel extends DebtEntity {
   // --- JSON/CLOUD MAPPING ---
   factory DebtModel.fromJson(Map<String, dynamic> json) {
     return DebtModel(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      amount: (json['amount'] as num).toDouble(),
-      date: DateTime.parse(json['date'] as String),
-      type: json['type'] as String,
-      isPaid: json['isPaid'] as bool? ?? false,
-      paidDate: json['paidDate'] != null ? DateTime.parse(json['paidDate'] as String) : null,
+      id: (json['id'] ?? '').toString(),
+      name: (json['name'] ?? '').toString(),
+      amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
+      date: json['date'] != null
+          ? DateTime.tryParse(json['date'].toString()) ?? DateTime.now()
+          : DateTime.now(),
+      type: (json['type'] ?? 'payable').toString(),
+      isPaid: json['isPaid'] == true || json['is_paid'] == 1 || json['is_paid'] == true,
+      paidDate: json['paidDate'] != null
+          ? DateTime.tryParse(json['paidDate'].toString())
+          : (json['paid_date'] != null ? DateTime.tryParse(json['paid_date'].toString()) : null),
       notes: json['notes'] as String?,
     );
   }

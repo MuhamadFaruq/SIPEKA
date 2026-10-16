@@ -1,37 +1,34 @@
 import '../../domain/entities/transaction_entity.dart';
 import '../../domain/repositories/transaction_repository.dart';
-import '../datasources/transaction_local_datasource.dart';
-import '../datasources/transaction_remote_datasource.dart';
+import '../datasources/transaction_firestore_datasource.dart';
 import 'package:sipeka/features/transaction/data/models/transaction_model.dart';
 
 class TransactionRepositoryImpl implements TransactionRepository {
-  final TransactionLocalDataSource localDataSource;
-  final TransactionRemoteDataSource remoteDataSource;
+  final TransactionDataSource dataSource;
 
   TransactionRepositoryImpl({
-    required this.localDataSource,
-    required this.remoteDataSource,
-  });
+    TransactionDataSource? dataSource,
+  }) : dataSource = dataSource ?? TransactionFirestoreDataSource();
 
   @override
   Future<List<TransactionEntity>> getTransactions() async {
-    return await localDataSource.getTransactions();
+    return await dataSource.getTransactions();
   }
 
   @override
   Future<bool> addTransaction(TransactionEntity transaction) async {
     final model = TransactionModel.fromEntity(transaction);
-    return await localDataSource.insertTransaction(model);
+    return await dataSource.insertTransaction(model);
   }
 
   @override
   Future<bool> updateTransaction(TransactionEntity transaction) async {
     final model = TransactionModel.fromEntity(transaction);
-    return await localDataSource.updateTransaction(model);
+    return await dataSource.updateTransaction(model);
   }
 
   @override
   Future<void> deleteTransaction(String id) async {
-    await localDataSource.deleteTransaction(id);
+    await dataSource.deleteTransaction(id);
   }
 }

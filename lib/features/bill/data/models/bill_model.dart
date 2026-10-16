@@ -42,11 +42,17 @@ class BillModel extends BillEntity {
       category: map['category'] ?? '',
       wallet: map['wallet'] ?? '',
       frequency: map['frequency'] ?? 'monthly',
-      startDate: map['start_date'] != null ? DateTime.parse(map['start_date']) : DateTime.now(),
-      lastExecutedDate: map['last_executed_date'] != null ? DateTime.parse(map['last_executed_date']) : null,
-      nextExecutionDate: map['next_execution_date'] != null ? DateTime.parse(map['next_execution_date']) : DateTime.now(),
-      isActive: (map['is_active'] ?? 1) == 1,
-      remindMe: (map['remind_me'] ?? 1) == 1,
+      startDate: map['start_date'] != null
+          ? DateTime.tryParse(map['start_date'].toString()) ?? DateTime.now()
+          : DateTime.now(),
+      lastExecutedDate: map['last_executed_date'] != null
+          ? DateTime.tryParse(map['last_executed_date'].toString())
+          : null,
+      nextExecutionDate: map['next_execution_date'] != null
+          ? DateTime.tryParse(map['next_execution_date'].toString()) ?? DateTime.now()
+          : DateTime.now(),
+      isActive: map['is_active'] == true || map['is_active'] == 1 || (map['is_active'] ?? 1) == 1,
+      remindMe: map['remind_me'] == true || map['remind_me'] == 1 || (map['remind_me'] ?? 1) == 1,
     );
   }
 

@@ -13,14 +13,16 @@ class WishlistHistoryModel extends WishlistHistoryEntity {
 
   factory WishlistHistoryModel.fromMap(Map<String, dynamic> map) {
     return WishlistHistoryModel(
-      id: map['id'] as String,
-      wishlistId: map['wishlist_id'] as String,
-      wishlistTitle: map['wishlist_title'] as String,
-      type: (map['type'] as String) == 'withdraw'
+      id: (map['id'] ?? '').toString(),
+      wishlistId: (map['wishlist_id'] ?? map['wishlistId'] ?? '').toString(),
+      wishlistTitle: (map['wishlist_title'] ?? map['wishlistTitle'] ?? '').toString(),
+      type: (map['type']?.toString()) == 'withdraw'
           ? WishlistHistoryType.withdraw
           : WishlistHistoryType.deposit,
-      amount: (map['amount'] as num).toDouble(),
-      date: DateTime.parse(map['date'] as String),
+      amount: (map['amount'] as num?)?.toDouble() ?? 0.0,
+      date: map['date'] != null
+          ? DateTime.tryParse(map['date'].toString()) ?? DateTime.now()
+          : DateTime.now(),
       notes: map['notes'] as String?,
     );
   }

@@ -1,38 +1,35 @@
 import '../../domain/entities/wishlist_entity.dart';
 import '../../domain/entities/wishlist_history_entity.dart';
 import '../../domain/repositories/wishlist_repository.dart';
-import '../datasources/wishlist_local_datasource.dart';
-import '../datasources/wishlist_remote_datasource.dart';
+import '../datasources/wishlist_firestore_datasource.dart';
 import '../models/wishlist_model.dart';
 import '../models/wishlist_history_model.dart';
 
 class WishlistRepositoryImpl implements WishlistRepository {
-  final WishlistLocalDataSource localDataSource;
-  final WishlistRemoteDataSource remoteDataSource;
+  final WishlistDataSource dataSource;
 
   WishlistRepositoryImpl({
-    required this.localDataSource,
-    required this.remoteDataSource,
-  });
+    WishlistDataSource? dataSource,
+  }) : dataSource = dataSource ?? WishlistFirestoreDataSource();
 
   @override
   Future<List<WishlistEntity>> getWishlist() async {
-    return await localDataSource.getWishlist();
+    return await dataSource.getWishlist();
   }
 
   @override
   Future<void> addWishlist(WishlistEntity item) async {
-    await localDataSource.insertWishlist(WishlistModel.fromEntity(item));
+    await dataSource.insertWishlist(WishlistModel.fromEntity(item));
   }
 
   @override
   Future<void> addSavings(String id, double amount, {String? notes}) async {
-    final items = await localDataSource.getWishlist();
+    final items = await dataSource.getWishlist();
     final matches = items.where((element) => element.id == id);
     if (matches.isEmpty) return;
     final item = matches.first;
     final newCollected = item.savedAmount + amount;
-    await localDataSource.updateSavings(int.parse(id), newCollected);
+    await dataSource.updateSavings(id, newCollected);
 
     // Rekam riwayat mutasi
     final history = WishlistHistoryModel(
@@ -44,26 +41,26 @@ class WishlistRepositoryImpl implements WishlistRepository {
       date: DateTime.now(),
       notes: notes,
     );
-    await localDataSource.insertWishlistHistory(history);
+    await dataSource.insertWishlistHistory(history);
   }
 
   @override
   Future<void> deleteWishlist(String id) async {
-    await localDataSource.deleteWishlist(int.parse(id));
+    await dataSource.deleteWishlist(id);
   }
 
   @override
   Future<void> clearWishlists() async {
-    await localDataSource.clearWishlists();
+    await dataSource.clearWishlists();
   }
 
   @override
   Future<List<WishlistHistoryEntity>> getHistoryByWishlistId(String wishlistId) async {
-    return await localDataSource.getHistoryByWishlistId(wishlistId);
+    return await dataSource.getHistoryByWishlistId(wishlistId);
   }
 
   @override
   Future<List<WishlistHistoryEntity>> getAllWishlistHistory() async {
-    return await localDataSource.getAllWishlistHistory();
+    return await dataSource.getAllWishlistHistory();
   }
 }

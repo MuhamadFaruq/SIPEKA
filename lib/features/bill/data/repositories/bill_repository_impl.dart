@@ -1,37 +1,33 @@
-import 'package:sipeka/core/database/database_helper.dart';
+import 'package:sipeka/features/bill/data/datasources/bill_firestore_datasource.dart';
 import '../../domain/entities/bill_entity.dart';
 import '../../domain/repositories/bill_repository.dart';
 import '../models/bill_model.dart';
 
 class BillRepositoryImpl implements BillRepository {
-  final DatabaseHelper databaseHelper;
+  final BillDataSource dataSource;
 
-  BillRepositoryImpl({DatabaseHelper? dbHelper})
-      : databaseHelper = dbHelper ?? DatabaseHelper.instance;
+  BillRepositoryImpl({BillDataSource? dataSource})
+      : dataSource = dataSource ?? BillFirestoreDataSource();
 
   @override
   Future<List<BillEntity>> getBills() async {
-    final maps = await databaseHelper.getAllBills();
-    return maps.map((m) => BillModel.fromMap(m)).toList();
+    return await dataSource.getBills();
   }
 
   @override
   Future<bool> addBill(BillEntity bill) async {
     final model = BillModel.fromEntity(bill);
-    final result = await databaseHelper.insertBill(model.toMap());
-    return result > 0;
+    return await dataSource.insertBill(model);
   }
 
   @override
   Future<bool> updateBill(BillEntity bill) async {
     final model = BillModel.fromEntity(bill);
-    final result = await databaseHelper.updateBill(bill.id, model.toMap());
-    return result > 0;
+    return await dataSource.updateBill(model);
   }
 
   @override
   Future<bool> deleteBill(String id) async {
-    final result = await databaseHelper.deleteBill(id);
-    return result > 0;
+    return await dataSource.deleteBill(id);
   }
 }

@@ -3,7 +3,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-import 'package:sipeka/core/database/database_helper.dart';
+import 'package:sipeka/core/services/firestore_service.dart';
 import 'package:sipeka/features/wallet/domain/entities/wallet_entity.dart';
 import 'package:sipeka/features/transaction/domain/entities/transaction_entity.dart';
 
@@ -44,9 +44,9 @@ class SharedWalletSyncService {
       'created_at': FieldValue.serverTimestamp(),
     });
 
-    // 2. Perbarui baris dompet di SQLite lokal
-    await DatabaseHelper.instance.updateWallet(wallet.id, {
-      'is_shared': 1,
+    // 2. Perbarui baris dompet di Firestore user
+    await FirestoreService.instance.userCollection('wallets').doc(wallet.id).update({
+      'is_shared': true,
       'invite_code': code,
       'owner_id': uid,
     });
@@ -86,19 +86,18 @@ class SharedWalletSyncService {
       });
     }
 
-    // 3. Masukkan record dompet baru ke SQLite lokal
-    await DatabaseHelper.instance.insertWallet({
-      'id': walletId,
+    // 3. Masukkan record dompet baru ke Firestore user
+    await FirestoreService.instance.userCollection('wallets').doc(walletId).set({
       'name': data['name'],
       'initial_balance': (data['initial_balance'] as num?)?.toDouble() ?? 0.0,
       'icon_code': data['icon_code'] ?? 0,
       'color_hex': data['color_hex'] ?? '#007AFF',
-      'is_shared': 1,
+      'is_shared': true,
       'invite_code': cleanCode,
       'owner_id': data['owner_uid'],
     });
 
-    // 4. Unduh semua transaksi yang ada di dompet bersama ke SQLite lokal
+    // 4. Unduh semua transaksi yang ada di dompet bersama ke Firestore user
     final txQuery = await _firestore
         .collection('shared_wallets')
         .doc(walletId)
@@ -107,8 +106,7 @@ class SharedWalletSyncService {
 
     for (var txDoc in txQuery.docs) {
       final txData = txDoc.data();
-      await DatabaseHelper.instance.insertTransaction({
-        'id': txDoc.id,
+      await FirestoreService.instance.userCollection('transactions').doc(txDoc.id).set({
         'title': txData['title'] ?? '',
         'amount': (txData['amount'] as num?)?.toDouble() ?? 0.0,
         'date': txData['date'] ?? DateTime.now().toIso8601String(),
@@ -130,9 +128,9 @@ class SharedWalletSyncService {
     final uid = _userId;
     if (uid == null) return;
 
-    // Ambil daftar semua dompet dari SQLite lokal
-    final allWallets = await DatabaseHelper.instance.getAllWallets();
-    final sharedWallets = allWallets.where((w) => (w['is_shared'] ?? 0) == 1).toList();
+    // Ambil daftar semua dompet dari Firestore user
+    final allWallets = await FirestoreService.instance.getAllWallets();
+    final sharedWallets = allWallets.where((w) => w['is_shared'] == true || w['is_shared'] == 1).toList();
 
     for (var wallet in sharedWallets) {
       final walletId = wallet['id'] as String;
@@ -156,14 +154,13 @@ class SharedWalletSyncService {
           final data = change.doc.data();
 
           if (change.type == DocumentChangeType.removed) {
-            // Hapus dari SQLite lokal
-            await DatabaseHelper.instance.deleteTransaction(docId);
+            // Hapus dari Firestore user
+            await FirestoreService.instance.userCollection('transactions').doc(docId).delete();
             hasChanges = true;
           } else {
             if (data != null) {
-              // Masukkan atau perbarui SQLite lokal
-              await DatabaseHelper.instance.insertTransaction({
-                'id': docId,
+              // Masukkan atau perbarui Firestore user
+              await FirestoreService.instance.userCollection('transactions').doc(docId).set({
                 'title': data['title'] ?? '',
                 'amount': (data['amount'] as num?)?.toDouble() ?? 0.0,
                 'date': data['date'] ?? DateTime.now().toIso8601String(),
@@ -223,5 +220,22 @@ class SharedWalletSyncService {
         .collection('transactions')
         .doc(txId)
         .delete();
+  }
+
+  // Updates a transaction in the shared wallet's collection in Firestore
+  Future<void> updateSharedTransaction(TransactionEntity tx, String walletId) async {
+    await _firestore
+        .collection('shared_wallets')
+        .doc(walletId)
+        .collection('transactions')
+        .doc(tx.id)
+        .set({
+      'title': tx.title,
+      'amount': tx.amount,
+      'date': tx.date.toIso8601String(),
+      'type': tx.type.dbValue,
+      'category': tx.category,
+      'source': 'Shared',
+    }, SetOptions(merge: true));
   }
 }

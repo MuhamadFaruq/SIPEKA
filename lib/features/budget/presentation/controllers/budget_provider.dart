@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:sipeka/core/database/database_helper.dart';
-import 'package:sipeka/core/services/sync_service.dart';
 import 'package:sipeka/core/constants/constants.dart';
 
 import '../../domain/entities/budget_entity.dart';
@@ -9,8 +7,6 @@ import '../../domain/usecases/delete_budget.dart';
 import '../../domain/usecases/get_budgets.dart';
 import '../../domain/usecases/update_budget.dart';
 import '../../data/repositories/budget_repository_impl.dart';
-import '../../data/datasources/budget_local_datasource.dart';
-import '../../data/datasources/budget_remote_datasource.dart';
 
 class BudgetProvider with ChangeNotifier {
   final GetBudgetsUseCase getBudgetsUseCase;
@@ -34,33 +30,13 @@ class BudgetProvider with ChangeNotifier {
     UpdateBudgetUseCase? updateBudgetUseCase,
     DeleteBudgetUseCase? deleteBudgetUseCase,
   })  : getBudgetsUseCase = getBudgetsUseCase ??
-            GetBudgetsUseCase(
-              BudgetRepositoryImpl(
-                localDataSource: BudgetLocalDataSourceImpl(DatabaseHelper.instance),
-                remoteDataSource: BudgetRemoteDataSourceImpl(SyncService()),
-              ),
-            ),
+            GetBudgetsUseCase(BudgetRepositoryImpl()),
         addBudgetUseCase = addBudgetUseCase ??
-            AddBudgetUseCase(
-              BudgetRepositoryImpl(
-                localDataSource: BudgetLocalDataSourceImpl(DatabaseHelper.instance),
-                remoteDataSource: BudgetRemoteDataSourceImpl(SyncService()),
-              ),
-            ),
+            AddBudgetUseCase(BudgetRepositoryImpl()),
         updateBudgetUseCase = updateBudgetUseCase ??
-            UpdateBudgetUseCase(
-              BudgetRepositoryImpl(
-                localDataSource: BudgetLocalDataSourceImpl(DatabaseHelper.instance),
-                remoteDataSource: BudgetRemoteDataSourceImpl(SyncService()),
-              ),
-            ),
+            UpdateBudgetUseCase(BudgetRepositoryImpl()),
         deleteBudgetUseCase = deleteBudgetUseCase ??
-            DeleteBudgetUseCase(
-              BudgetRepositoryImpl(
-                localDataSource: BudgetLocalDataSourceImpl(DatabaseHelper.instance),
-                remoteDataSource: BudgetRemoteDataSourceImpl(SyncService()),
-              ),
-            );
+            DeleteBudgetUseCase(BudgetRepositoryImpl());
 
   Future<void> fetchAndSetBudgets() async {
     _isLoading = true;
@@ -177,6 +153,6 @@ class BudgetProvider with ChangeNotifier {
   void clearAllData() {
     _budgets = []; 
     notifyListeners();
-    DatabaseHelper.instance.clearBudgetTable();
+    BudgetRepositoryImpl().dataSource.clearBudgets();
   }
 }

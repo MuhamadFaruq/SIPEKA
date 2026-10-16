@@ -967,7 +967,10 @@ class _NotificationTrackerScreenState extends State<NotificationTrackerScreen> {
                           final title = item['title'] as String? ?? "Transaksi";
                           final double amount = (item['amount'] as num?)?.toDouble() ?? 0.0;
                           final status = item['status'] as String? ?? "pending";
-                          final String timeStr = DateFormat('dd MMM, HH:mm').format(DateTime.parse(item['timestamp']));
+                          final DateTime itemDate = item['timestamp'] != null
+                              ? DateTime.tryParse(item['timestamp'].toString()) ?? DateTime.now()
+                              : DateTime.now();
+                          final String timeStr = DateFormat('dd MMM, HH:mm').format(itemDate);
 
                           Color statusColor = Colors.orange;
                           String statusText = "Perlu Tinjauan";

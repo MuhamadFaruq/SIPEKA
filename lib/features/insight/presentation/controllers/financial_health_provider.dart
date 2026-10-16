@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:sipeka/core/database/database_helper.dart';
+import 'package:sipeka/core/services/firestore_service.dart';
 import 'package:sipeka/core/services/ai_service.dart';
 
 class FinancialHealthProvider with ChangeNotifier {
@@ -18,15 +18,18 @@ class FinancialHealthProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final db = DatabaseHelper.instance;
+      final fs = FirestoreService.instance;
 
-      // 1. Ambil data keuangan riil dari SQLite
-      final income = await db.getTotalIncomeCurrentMonth();
-      final expense = await db.getTotalExpenseCurrentMonth();
-      final totalDebt = await db.getTotalUnpaidDebt();
-      final wallets = await db.getAllWallets();
+      // 1. Ambil data keuangan riil dari Firestore
+      final income = await fs.getTotalIncomeCurrentMonth();
+      final expense = await fs.getTotalExpenseCurrentMonth();
+      final totalDebt = await fs.getTotalUnpaidDebt();
+      final wallets = await fs.getAllWallets();
       
-      double totalSavings = wallets.fold(0.0, (sum, item) => sum + (item['initial_balance'] ?? 0.0));
+      double totalSavings = wallets.fold<double>(
+        0.0, 
+        (total, item) => total + ((item['initial_balance'] as num?)?.toDouble() ?? 0.0),
+      );
 
       // Jika data pemasukan belum diinput, berikan skor default aman
       if (income <= 0) {

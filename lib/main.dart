@@ -30,8 +30,10 @@ import 'package:home_widget/home_widget.dart';
 
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
+import 'package:sipeka/core/services/firestore_service.dart';
 import 'package:sipeka/core/navigation/navigation_helper.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -47,7 +49,13 @@ void main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    debugPrint("Firebase Berhasil Terkoneksi!");
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+    // Inisialisasi Firestore Service (guest UID fallback & default wallets seeding)
+    await FirestoreService.instance.init();
+    debugPrint("Firebase & Firestore Offline Persistence Berhasil Terkoneksi!");
   } catch (e) {
     debugPrint("Firebase Error: $e");
   }

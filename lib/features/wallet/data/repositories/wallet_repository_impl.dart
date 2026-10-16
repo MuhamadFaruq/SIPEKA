@@ -1,22 +1,24 @@
 import '../../domain/entities/wallet_entity.dart';
 import '../../domain/repositories/wallet_repository.dart';
-import '../datasources/wallet_local_datasource.dart';
+import '../datasources/wallet_firestore_datasource.dart';
 import '../models/wallet_model.dart';
 
 class WalletRepositoryImpl implements WalletRepository {
-  final WalletLocalDataSource localDataSource;
+  final WalletDataSource dataSource;
 
-  WalletRepositoryImpl({required this.localDataSource});
+  WalletRepositoryImpl({
+    WalletDataSource? dataSource,
+  }) : dataSource = dataSource ?? WalletFirestoreDataSource();
 
   @override
   Future<List<WalletEntity>> getWallets() async {
-    return await localDataSource.getWallets();
+    return await dataSource.getWallets();
   }
 
   @override
   Future<bool> addWallet(WalletEntity wallet) async {
     try {
-      await localDataSource.insertWallet(WalletModel.fromEntity(wallet));
+      await dataSource.insertWallet(WalletModel.fromEntity(wallet));
       return true;
     } catch (e) {
       return false;
@@ -26,7 +28,7 @@ class WalletRepositoryImpl implements WalletRepository {
   @override
   Future<bool> updateWallet(WalletEntity wallet) async {
     try {
-      await localDataSource.updateWallet(WalletModel.fromEntity(wallet));
+      await dataSource.updateWallet(WalletModel.fromEntity(wallet));
       return true;
     } catch (e) {
       return false;
@@ -36,7 +38,7 @@ class WalletRepositoryImpl implements WalletRepository {
   @override
   Future<bool> deleteWallet(String id) async {
     try {
-      await localDataSource.deleteWallet(id);
+      await dataSource.deleteWallet(id);
       return true;
     } catch (e) {
       return false;
@@ -45,6 +47,6 @@ class WalletRepositoryImpl implements WalletRepository {
 
   @override
   Future<void> clearWallets() async {
-    await localDataSource.clearWallets();
+    await dataSource.clearWallets();
   }
 }

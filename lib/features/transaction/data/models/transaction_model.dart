@@ -31,7 +31,7 @@ class TransactionModel extends TransactionEntity {
       id: map['id'] ?? '',
       title: map['title'] ?? '',
       amount: (map['amount'] as num?)?.toDouble() ?? 0.0,
-      date: map['date'] != null ? DateTime.parse(map['date']) : DateTime.now(),
+      date: map['date'] != null ? DateTime.tryParse(map['date'].toString()) ?? DateTime.now() : DateTime.now(),
       type: TransactionType.fromString(map['type']),
       category: map['category'] ?? '',
       wallet: map['wallet'] ?? '',

@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:sipeka/core/database/database_helper.dart';
+import 'package:sipeka/core/services/firestore_service.dart';
 import 'package:sipeka/core/services/ocr_helper.dart';
-import 'package:sipeka/core/services/sync_service.dart';
 import 'package:sipeka/core/services/widget_service.dart';
 import 'package:sipeka/core/services/shared_wallet_sync_service.dart';
 
@@ -14,8 +13,6 @@ import '../../domain/usecases/delete_transaction.dart';
 import '../../domain/usecases/get_transactions.dart';
 import '../../domain/usecases/update_transaction.dart';
 import '../../data/repositories/transaction_repository_impl.dart';
-import '../../data/datasources/transaction_local_datasource.dart';
-import '../../data/datasources/transaction_remote_datasource.dart';
 
 class TransactionProvider with ChangeNotifier {
   final GetTransactionsUseCase getTransactionsUseCase;
@@ -38,33 +35,13 @@ class TransactionProvider with ChangeNotifier {
     UpdateTransactionUseCase? updateTransactionUseCase,
     DeleteTransactionUseCase? deleteTransactionUseCase,
   })  : getTransactionsUseCase = getTransactionsUseCase ??
-            GetTransactionsUseCase(
-              TransactionRepositoryImpl(
-                localDataSource: TransactionLocalDataSourceImpl(DatabaseHelper.instance),
-                remoteDataSource: TransactionRemoteDataSourceImpl(SyncService()),
-              ),
-            ),
+            GetTransactionsUseCase(TransactionRepositoryImpl()),
         addTransactionUseCase = addTransactionUseCase ??
-            AddTransactionUseCase(
-              TransactionRepositoryImpl(
-                localDataSource: TransactionLocalDataSourceImpl(DatabaseHelper.instance),
-                remoteDataSource: TransactionRemoteDataSourceImpl(SyncService()),
-              ),
-            ),
+            AddTransactionUseCase(TransactionRepositoryImpl()),
         updateTransactionUseCase = updateTransactionUseCase ??
-            UpdateTransactionUseCase(
-              TransactionRepositoryImpl(
-                localDataSource: TransactionLocalDataSourceImpl(DatabaseHelper.instance),
-                remoteDataSource: TransactionRemoteDataSourceImpl(SyncService()),
-              ),
-            ),
+            UpdateTransactionUseCase(TransactionRepositoryImpl()),
         deleteTransactionUseCase = deleteTransactionUseCase ??
-            DeleteTransactionUseCase(
-              TransactionRepositoryImpl(
-                localDataSource: TransactionLocalDataSourceImpl(DatabaseHelper.instance),
-                remoteDataSource: TransactionRemoteDataSourceImpl(SyncService()),
-              ),
-            );
+            DeleteTransactionUseCase(TransactionRepositoryImpl());
 
   // Panggil ini setiap kali _transactions berubah
   void _updateSortedCache() {
@@ -83,7 +60,7 @@ class TransactionProvider with ChangeNotifier {
     }
   }
 
-  // --- FETCH DATA (LOKAL) ---
+  // --- FETCH DATA (FIRESTORE) ---
   Future<void> fetchAndSetTransactions() async {
     _isLoading = true;
     notifyListeners();
@@ -106,12 +83,12 @@ class TransactionProvider with ChangeNotifier {
     _updateSortedCache(); // Update cache
     notifyListeners();
 
-    // 2. Simpan ke Database
+    // 2. Simpan ke Firestore
     try {
       final success = await addTransactionUseCase(tx);
       if (!success) {
-        // Rollback jika DB mengembalikan false
-        debugPrint("PROVIDER: DB gagal simpan transaksi '${tx.title}' — rollback!");
+        // Rollback jika Firestore mengembalikan false
+        debugPrint("PROVIDER: Firestore gagal simpan transaksi '${tx.title}' — rollback!");
         _transactions.remove(tx);
         _updateSortedCache();
         notifyListeners();
@@ -120,12 +97,12 @@ class TransactionProvider with ChangeNotifier {
       
       // Sinkronisasi ke shared wallet jika tipenya shared
       try {
-        final allWallets = await DatabaseHelper.instance.getAllWallets();
+        final allWallets = await FirestoreService.instance.getAllWallets();
         final targetWallet = allWallets.firstWhere(
           (w) => (w['name'] as String).toLowerCase() == tx.wallet.toLowerCase(),
           orElse: () => {},
         );
-        if (targetWallet.isNotEmpty && (targetWallet['is_shared'] ?? 0) == 1) {
+        if (targetWallet.isNotEmpty && (targetWallet['is_shared'] == true || targetWallet['is_shared'] == 1)) {
           final walletId = targetWallet['id'] as String;
           await SharedWalletSyncService.instance.addSharedTransaction(tx, walletId);
         }
@@ -157,16 +134,50 @@ class TransactionProvider with ChangeNotifier {
     _updateSortedCache();
     notifyListeners();
 
-    // 3. Simpan ke database
+    // 3. Simpan ke Firestore
     try {
       final success = await updateTransactionUseCase(updatedTx);
       if (!success) {
-        debugPrint("PROVIDER: DB gagal update transaksi '${updatedTx.title}' — rollback!");
+        debugPrint("PROVIDER: Firestore gagal update transaksi '${updatedTx.title}' — rollback!");
         _transactions[index] = oldTx;
         _updateSortedCache();
         notifyListeners();
         return false;
       }
+      // Sinkronisasi ke shared wallet
+      try {
+        final allWallets = await FirestoreService.instance.getAllWallets();
+        final oldWallet = allWallets.firstWhere(
+          (w) => (w['name'] as String).toLowerCase() == oldTx.wallet.toLowerCase(),
+          orElse: () => {},
+        );
+        final newWallet = allWallets.firstWhere(
+          (w) => (w['name'] as String).toLowerCase() == updatedTx.wallet.toLowerCase(),
+          orElse: () => {},
+        );
+
+        final bool isOldShared = oldWallet.isNotEmpty && (oldWallet['is_shared'] == true || oldWallet['is_shared'] == 1);
+        final bool isNewShared = newWallet.isNotEmpty && (newWallet['is_shared'] == true || newWallet['is_shared'] == 1);
+
+        if (isOldShared && isNewShared && oldWallet['id'] == newWallet['id']) {
+          // Dompet tetap sama (shared wallet): update transaksi di shared wallet cloud
+          final walletId = newWallet['id'] as String;
+          await SharedWalletSyncService.instance.updateSharedTransaction(updatedTx, walletId);
+        } else {
+          // Dompet berubah:
+          if (isOldShared) {
+            final oldWalletId = oldWallet['id'] as String;
+            await SharedWalletSyncService.instance.deleteSharedTransaction(oldTx.id, oldWalletId);
+          }
+          if (isNewShared) {
+            final newWalletId = newWallet['id'] as String;
+            await SharedWalletSyncService.instance.addSharedTransaction(updatedTx, newWalletId);
+          }
+        }
+      } catch (err) {
+        debugPrint("PROVIDER: Gagal sinkronisasi update transaksi ke shared wallet: $err");
+      }
+
       debugPrint("PROVIDER: Berhasil update transaksi: ${updatedTx.title} (id=${updatedTx.id})");
       return true;
     } catch (e) {
@@ -182,19 +193,19 @@ class TransactionProvider with ChangeNotifier {
     final txList = _transactions.where((t) => t.id == id).toList();
     final tx = txList.isNotEmpty ? txList.first : null;
 
-    // 1. Hapus dari memori & Lokal
+    // 1. Hapus dari memori
     _transactions.removeWhere((tx) => tx.id == id);
     _updateSortedCache(); // Update cache
     notifyListeners();
 
     if (tx != null) {
       try {
-        final allWallets = await DatabaseHelper.instance.getAllWallets();
+        final allWallets = await FirestoreService.instance.getAllWallets();
         final targetWallet = allWallets.firstWhere(
           (w) => (w['name'] as String).toLowerCase() == tx.wallet.toLowerCase(),
           orElse: () => {},
         );
-        if (targetWallet.isNotEmpty && (targetWallet['is_shared'] ?? 0) == 1) {
+        if (targetWallet.isNotEmpty && (targetWallet['is_shared'] == true || targetWallet['is_shared'] == 1)) {
           final walletId = targetWallet['id'] as String;
           await SharedWalletSyncService.instance.deleteSharedTransaction(tx.id, walletId);
         }
@@ -206,7 +217,7 @@ class TransactionProvider with ChangeNotifier {
     try {
       await deleteTransactionUseCase(id);
     } catch (e) {
-      debugPrint("Gagal hapus lokal: $e");
+      debugPrint("Gagal hapus dari Firestore: $e");
     }
   }
 
@@ -249,7 +260,7 @@ class TransactionProvider with ChangeNotifier {
   }
 
   Future<double> calculateTotalBalanceFromDb() async {
-    final walletsMap = await DatabaseHelper.instance.getAllWallets();
+    final walletsMap = await FirestoreService.instance.getAllWallets();
     double initialSum = 0.0;
     for (var w in walletsMap) {
       initialSum += (w['initial_balance'] as num?)?.toDouble() ?? 0.0;
@@ -267,7 +278,7 @@ class TransactionProvider with ChangeNotifier {
     _transactions = [];
     _sortedTransactions = [];
     notifyListeners();
-    await DatabaseHelper.instance.clearAllTables();
+    await FirestoreService.instance.clearAllUserData();
   }
 
   Future<void> loadTransactions() async {
