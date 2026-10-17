@@ -8,6 +8,8 @@ import 'package:sipeka/features/debt/domain/entities/debt_entity.dart';
 import 'package:sipeka/core/services/notifications.dart';
 import 'package:sipeka/features/debt/presentation/screens/debt_history_screen.dart';
 import 'package:sipeka/core/theme/app_theme.dart';
+import 'package:sipeka/core/services/finance_sync_service.dart';
+import 'package:sipeka/features/wallet/presentation/controllers/wallet_provider.dart';
 
 class DebtScreen extends StatefulWidget {
   const DebtScreen({super.key});
@@ -391,30 +393,157 @@ class _DebtScreenState extends State<DebtScreen> {
     );
   }
 
-  void _confirmLunas(BuildContext context, Debt debt) {
+  void _confirmLunas(BuildContext context, Debt debt) async {
+    final walletProvider = Provider.of<WalletProvider>(context, listen: false);
+    final syncMode = await FinanceSyncService.instance.getSyncMode();
+    final defaultWallet = await FinanceSyncService.instance.getDefaultWallet(context);
+    final wallets = walletProvider.wallets;
+
+    String selectedWallet = defaultWallet;
+    bool shouldSyncWallet = syncMode != FinanceSyncMode.disabled;
+    final bool isHutang = debt.type == 'Borrowed';
+
+    if (!context.mounted) return;
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Theme.of(context).cardColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text("Tandai Lunas?", style: GoogleFonts.nunito(
-          fontWeight: FontWeight.bold,
-          color: Theme.of(context).textTheme.bodyLarge?.color
-        )),
-        content: Text("Yakin '${debt.name}' sudah melunasi tagihannya?", style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("BATAL", style: TextStyle(color: Colors.grey))),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00C853)),
-            onPressed: () {
-              Provider.of<DebtProvider>(context, listen: false).markAsPaid(debt.id);
-              Navigator.pop(ctx);
-              SipekaNotification.showSuccess(context, "Berhasil! Catatan dipindahkan ke histori.");
-            },
-            child: const Text("YA, LUNAS", style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: Theme.of(context).cardColor,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Text("Tandai Lunas?", style: GoogleFonts.nunito(
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).textTheme.bodyLarge?.color,
+              )),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isHutang
+                        ? "Yakin Anda sudah melunasi hutang ke '${debt.name}'?"
+                        : "Yakin '${debt.name}' sudah melunasi tagihannya?",
+                    style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "Nominal: ${NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(debt.amount)}",
+                    style: GoogleFonts.nunito(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: isHutang ? Colors.redAccent : Colors.green,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  if (syncMode == FinanceSyncMode.manual) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          isHutang ? "Potong Saldo Dompet" : "Tambah ke Saldo Dompet",
+                          style: GoogleFonts.nunito(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).textTheme.bodyLarge?.color,
+                          ),
+                        ),
+                        Switch(
+                          value: shouldSyncWallet,
+                          activeThumbColor: const Color(0xFF00C853),
+                          onChanged: (val) => setDialogState(() => shouldSyncWallet = val),
+                        ),
+                      ],
+                    ),
+                    if (shouldSyncWallet) ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).scaffoldBackgroundColor,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: wallets.any((w) => w.name == selectedWallet)
+                                ? selectedWallet
+                                : (wallets.isNotEmpty ? wallets.first.name : 'Dompet'),
+                            isExpanded: true,
+                            icon: const Icon(Icons.account_balance_wallet_rounded, color: Colors.green, size: 18),
+                            items: (wallets.isNotEmpty ? wallets.map((w) => w.name).toList() : ['Dompet'])
+                                .map((name) => DropdownMenuItem(
+                                      value: name,
+                                      child: Text(name, style: GoogleFonts.nunito(fontWeight: FontWeight.w600, fontSize: 13)),
+                                    ))
+                                .toList(),
+                            onChanged: (val) {
+                              if (val != null) {
+                                setDialogState(() => selectedWallet = val);
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
+                  ] else if (syncMode == FinanceSyncMode.automatic) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.bolt_rounded, color: Colors.green, size: 18),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              isHutang
+                                  ? "Saldo otomatis terpotong dari: $defaultWallet"
+                                  : "Saldo otomatis masuk ke: $defaultWallet",
+                              style: GoogleFonts.nunito(color: Colors.green, fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("BATAL", style: TextStyle(color: Colors.grey))),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00C853)),
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    await Provider.of<DebtProvider>(context, listen: false).markAsPaid(debt.id);
+
+                    if (shouldSyncWallet && syncMode != FinanceSyncMode.disabled) {
+                      final targetWallet = syncMode == FinanceSyncMode.automatic ? defaultWallet : selectedWallet;
+                      await FinanceSyncService.instance.recordDebtTransaction(
+                        context: context,
+                        debt: debt,
+                        walletName: targetWallet,
+                      );
+                    }
+
+                    if (context.mounted) {
+                      final syncMsg = shouldSyncWallet && syncMode != FinanceSyncMode.disabled
+                          ? " & saldo dompet diperbarui"
+                          : "";
+                      SipekaNotification.showSuccess(context, "Berhasil! Catatan dipindahkan ke histori$syncMsg.");
+                    }
+                  },
+                  child: const Text("YA, LUNAS", style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 

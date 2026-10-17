@@ -11,6 +11,8 @@ import 'package:sipeka/core/theme/app_theme.dart';
 import 'financial_simulator_screen.dart';
 import '../widgets/wishlist_detail_sheet.dart';
 import '../widgets/wishlist_all_history_sheet.dart';
+import 'package:sipeka/core/services/finance_sync_service.dart';
+import 'package:sipeka/features/wallet/presentation/controllers/wallet_provider.dart';
 
 class WishlistScreen extends StatefulWidget {
   const WishlistScreen({super.key});
@@ -69,10 +71,20 @@ class _WishlistScreenState extends State<WishlistScreen> {
     );
   }
 
-  void _showNabungDialog(BuildContext context, WishlistItem item) {
+  void _showNabungDialog(BuildContext context, WishlistItem item) async {
     final nominalController = TextEditingController();
     final noteController = TextEditingController();
     final wishlistProvider = Provider.of<WishlistProvider>(context, listen: false);
+    final walletProvider = Provider.of<WalletProvider>(context, listen: false);
+
+    final syncMode = await FinanceSyncService.instance.getSyncMode();
+    final defaultWallet = await FinanceSyncService.instance.getDefaultWallet(context);
+    final wallets = walletProvider.wallets;
+
+    String selectedWallet = defaultWallet;
+    bool shouldDeductWallet = syncMode != FinanceSyncMode.disabled;
+
+    if (!context.mounted) return;
 
     showModalBottomSheet(
       context: context,
@@ -80,94 +92,196 @@ class _WishlistScreenState extends State<WishlistScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25.0))),
       builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          child: SingleChildScrollView(
-            child: Container(
-              padding: const EdgeInsets.all(25),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("Tabung buat: ${item.title}", style: GoogleFonts.nunito(
-                    fontSize: 18, 
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).textTheme.bodyLarge?.color
-                  )),
-                  const SizedBox(height: 10),
-                  Text("Terkumpul: ${formatRupiah(item.savedAmount)}", style: GoogleFonts.nunito(color: Colors.grey[600], fontSize: 13)),
-                  const SizedBox(height: 20),
-                  TextField(
-                    controller: nominalController,
-                    autofocus: true,
-                    keyboardType: TextInputType.number,
-                    style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
-                    decoration: InputDecoration(
-                      labelText: 'Nominal Tabungan',
-                      labelStyle: const TextStyle(color: Colors.grey),
-                      filled: true,
-                      fillColor: Theme.of(context).cardColor,
-                      prefixText: "Rp ",
-                      prefixStyle: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  TextField(
-                    controller: noteController,
-                    style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
-                    decoration: InputDecoration(
-                      labelText: 'Catatan (Opsional)',
-                      hintText: 'Cth: Sisa uang jajan, bonus kerja',
-                      labelStyle: const TextStyle(color: Colors.grey),
-                      filled: true,
-                      fillColor: Theme.of(context).cardColor,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                    ),
-                  ),
-                  const SizedBox(height: 25),
-                  SizedBox(
-                    width: double.infinity,
-                    child: Container(
-                      decoration: BoxDecoration(gradient: LinearGradient(colors: [startBlue, endBlue]), borderRadius: BorderRadius.circular(12)),
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          String cleanValue = nominalController.text.replaceAll('.', '');
-                          double nominal = double.tryParse(cleanValue) ?? 0;
-
-                          if (nominal > 0) {
-                            // Tampilkan loading dialog
-                            showDialog(
-                              context: context,
-                              barrierDismissible: false,
-                              builder: (ctx) => const Center(child: CircularProgressIndicator()),
-                            );
-
-                            try {
-                              await wishlistProvider.addSavings(
-                                item.id,
-                                nominal,
-                                note: noteController.text.trim().isEmpty ? null : noteController.text.trim(),
-                              );
-                              if (context.mounted) Navigator.pop(context); // Tutup loading
-                              if (ctx.mounted) Navigator.pop(ctx); // Tutup bottom sheet
-                              if (context.mounted) SipekaNotification.showSuccess(context, "Berhasil menabung ${formatRupiah(nominal)}!");
-                            } catch (e) {
-                              if (context.mounted) Navigator.pop(context); // Tutup loading
-                              if (context.mounted) SipekaNotification.showWarning(context, "Gagal menyimpan tabungan: $e");
-                            }
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, padding: const EdgeInsets.symmetric(vertical: 15)),
-                        child: Text("SIMPAN TABUNGAN", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, color: Colors.white)),
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Padding(
+              padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+              child: SingleChildScrollView(
+                child: Container(
+                  padding: const EdgeInsets.all(25),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("Tabung buat: ${item.title}", style: GoogleFonts.nunito(
+                        fontSize: 18, 
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).textTheme.bodyLarge?.color
+                      )),
+                      const SizedBox(height: 10),
+                      Text("Terkumpul: ${formatRupiah(item.savedAmount)}", style: GoogleFonts.nunito(color: Colors.grey[600], fontSize: 13)),
+                      const SizedBox(height: 20),
+                      TextField(
+                        controller: nominalController,
+                        autofocus: true,
+                        keyboardType: TextInputType.number,
+                        style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
+                        decoration: InputDecoration(
+                          labelText: 'Nominal Tabungan',
+                          labelStyle: const TextStyle(color: Colors.grey),
+                          filled: true,
+                          fillColor: Theme.of(context).cardColor,
+                          prefixText: "Rp ",
+                          prefixStyle: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        ),
                       ),
-                    ),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: noteController,
+                        style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+                        decoration: InputDecoration(
+                          labelText: 'Catatan (Opsional)',
+                          hintText: 'Cth: Sisa uang jajan, bonus kerja',
+                          labelStyle: const TextStyle(color: Colors.grey),
+                          filled: true,
+                          fillColor: Theme.of(context).cardColor,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Lokasi Saldo / Sinkronisasi Dompet
+                      if (syncMode == FinanceSyncMode.manual) ...[
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              "Sumber Saldo (Potong Dompet)",
+                              style: GoogleFonts.nunito(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).textTheme.bodyLarge?.color,
+                              ),
+                            ),
+                            Switch(
+                              value: shouldDeductWallet,
+                              activeThumbColor: const Color(0xFF007AFF),
+                              onChanged: (val) => setDialogState(() => shouldDeductWallet = val),
+                            ),
+                          ],
+                        ),
+                        if (shouldDeductWallet) ...[
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).cardColor,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: startBlue.withValues(alpha: 0.3)),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: wallets.any((w) => w.name == selectedWallet)
+                                    ? selectedWallet
+                                    : (wallets.isNotEmpty ? wallets.first.name : 'Dompet'),
+                                isExpanded: true,
+                                icon: Icon(Icons.account_balance_wallet_rounded, color: startBlue, size: 20),
+                                items: (wallets.isNotEmpty ? wallets.map((w) => w.name).toList() : ['Dompet'])
+                                    .map((name) => DropdownMenuItem(
+                                          value: name,
+                                          child: Text(name, style: GoogleFonts.nunito(fontWeight: FontWeight.w600)),
+                                        ))
+                                    .toList(),
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    setDialogState(() => selectedWallet = val);
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
+                      ] else if (syncMode == FinanceSyncMode.automatic) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.green.withValues(alpha: 0.2)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.bolt_rounded, color: Colors.green, size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  "Saldo otomatis dipotong dari dompet: $defaultWallet",
+                                  style: GoogleFonts.nunito(
+                                    color: Colors.green,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+
+                      const SizedBox(height: 25),
+                      SizedBox(
+                        width: double.infinity,
+                        child: Container(
+                          decoration: BoxDecoration(gradient: LinearGradient(colors: [startBlue, endBlue]), borderRadius: BorderRadius.circular(12)),
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              String cleanValue = nominalController.text.replaceAll('.', '');
+                              double nominal = double.tryParse(cleanValue) ?? 0;
+
+                              if (nominal > 0) {
+                                // Tampilkan loading dialog
+                                showDialog(
+                                  context: context,
+                                  barrierDismissible: false,
+                                  builder: (ctx) => const Center(child: CircularProgressIndicator()),
+                                );
+
+                                try {
+                                  await wishlistProvider.addSavings(
+                                    item.id,
+                                    nominal,
+                                    note: noteController.text.trim().isEmpty ? null : noteController.text.trim(),
+                                  );
+
+                                  // Sinkronisasi Transaksi
+                                  if (shouldDeductWallet && (syncMode != FinanceSyncMode.disabled)) {
+                                    final targetWallet = syncMode == FinanceSyncMode.automatic ? defaultWallet : selectedWallet;
+                                    await FinanceSyncService.instance.recordWishlistTransaction(
+                                      context: context,
+                                      wishlistTitle: item.title,
+                                      amount: nominal,
+                                      walletName: targetWallet,
+                                      isWithdraw: false,
+                                    );
+                                  }
+
+                                  if (context.mounted) Navigator.pop(context); // Tutup loading
+                                  if (ctx.mounted) Navigator.pop(ctx); // Tutup bottom sheet
+                                  if (context.mounted) {
+                                    final walletMsg = shouldDeductWallet && syncMode != FinanceSyncMode.disabled
+                                        ? " (Saldo dompet terpotong)"
+                                        : "";
+                                    SipekaNotification.showSuccess(context, "Berhasil menabung ${formatRupiah(nominal)}!$walletMsg");
+                                  }
+                                } catch (e) {
+                                  if (context.mounted) Navigator.pop(context); // Tutup loading
+                                  if (context.mounted) SipekaNotification.showWarning(context, "Gagal menyimpan tabungan: $e");
+                                }
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, padding: const EdgeInsets.symmetric(vertical: 15)),
+                            child: Text("SIMPAN TABUNGAN", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, color: Colors.white)),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
@@ -274,10 +388,20 @@ class _WishlistScreenState extends State<WishlistScreen> {
     );
   }
 
-  void _showTarikDialog(BuildContext context, WishlistItem item) {
+  void _showTarikDialog(BuildContext context, WishlistItem item) async {
     final nominalController = TextEditingController();
     final noteController = TextEditingController();
     final wishlistProvider = Provider.of<WishlistProvider>(context, listen: false);
+    final walletProvider = Provider.of<WalletProvider>(context, listen: false);
+
+    final syncMode = await FinanceSyncService.instance.getSyncMode();
+    final defaultWallet = await FinanceSyncService.instance.getDefaultWallet(context);
+    final wallets = walletProvider.wallets;
+
+    String selectedWallet = defaultWallet;
+    bool shouldCreditWallet = syncMode != FinanceSyncMode.disabled;
+
+    if (!context.mounted) return;
 
     showModalBottomSheet(
       context: context,
@@ -285,139 +409,241 @@ class _WishlistScreenState extends State<WishlistScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25.0))),
       builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          child: SingleChildScrollView(
-            child: Container(
-              padding: const EdgeInsets.all(25),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Padding(
+              padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+              child: SingleChildScrollView(
+                child: Container(
+                  padding: const EdgeInsets.all(25),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.savings_outlined, color: Colors.orange, size: 24),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text("Tarik Tabungan", style: GoogleFonts.nunito(
+                                  fontSize: 18, 
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).textTheme.bodyLarge?.color
+                                )),
+                                Text(item.title, style: GoogleFonts.nunito(color: Colors.grey[600], fontSize: 13)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
                       Container(
-                        padding: const EdgeInsets.all(10),
+                        padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.orange.withOpacity(0.1),
+                          color: Colors.orange.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.savings_outlined, color: Colors.orange, size: 24),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text("Tarik Tabungan", style: GoogleFonts.nunito(
-                              fontSize: 18, 
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(context).textTheme.bodyLarge?.color
-                            )),
-                            Text(item.title, style: GoogleFonts.nunito(color: Colors.grey[600], fontSize: 13)),
+                            Text("Saldo terkumpul:", style: GoogleFonts.nunito(color: Colors.orange[700], fontSize: 13, fontWeight: FontWeight.w600)),
+                            Text(formatRupiah(item.savedAmount), style: GoogleFonts.nunito(color: Colors.orange[700], fontSize: 15, fontWeight: FontWeight.bold)),
                           ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      TextField(
+                        controller: nominalController,
+                        autofocus: true,
+                        keyboardType: TextInputType.number,
+                        style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
+                        decoration: InputDecoration(
+                          labelText: 'Nominal Penarikan',
+                          labelStyle: const TextStyle(color: Colors.grey),
+                          filled: true,
+                          fillColor: Theme.of(context).cardColor,
+                          prefixText: "Rp ",
+                          prefixStyle: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: noteController,
+                        style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+                        decoration: InputDecoration(
+                          labelText: 'Catatan (Opsional)',
+                          hintText: 'Cth: Keperluan mendadak, beli barang',
+                          labelStyle: const TextStyle(color: Colors.grey),
+                          filled: true,
+                          fillColor: Theme.of(context).cardColor,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Lokasi Saldo / Sinkronisasi Dompet
+                      if (syncMode == FinanceSyncMode.manual) ...[
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              "Tujuan Saldo (Tambah ke Dompet)",
+                              style: GoogleFonts.nunito(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).textTheme.bodyLarge?.color,
+                              ),
+                            ),
+                            Switch(
+                              value: shouldCreditWallet,
+                              activeThumbColor: Colors.orange,
+                              onChanged: (val) => setDialogState(() => shouldCreditWallet = val),
+                            ),
+                          ],
+                        ),
+                        if (shouldCreditWallet) ...[
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).cardColor,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: wallets.any((w) => w.name == selectedWallet)
+                                    ? selectedWallet
+                                    : (wallets.isNotEmpty ? wallets.first.name : 'Dompet'),
+                                isExpanded: true,
+                                icon: const Icon(Icons.account_balance_wallet_rounded, color: Colors.orange, size: 20),
+                                items: (wallets.isNotEmpty ? wallets.map((w) => w.name).toList() : ['Dompet'])
+                                    .map((name) => DropdownMenuItem(
+                                          value: name,
+                                          child: Text(name, style: GoogleFonts.nunito(fontWeight: FontWeight.w600)),
+                                        ))
+                                    .toList(),
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    setDialogState(() => selectedWallet = val);
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
+                      ] else if (syncMode == FinanceSyncMode.automatic) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.orange.withValues(alpha: 0.2)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.bolt_rounded, color: Colors.orange, size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  "Saldo otomatis dicairkan ke dompet: $defaultWallet",
+                                  style: GoogleFonts.nunito(
+                                    color: Colors.orange[800],
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+
+                      const SizedBox(height: 25),
+                      SizedBox(
+                        width: double.infinity,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(colors: [Colors.orange, Color(0xFFE65100)]),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              String cleanValue = nominalController.text.replaceAll('.', '');
+                              double nominal = double.tryParse(cleanValue) ?? 0;
+
+                              if (nominal <= 0) {
+                                SipekaNotification.showWarning(context, "Masukkan nominal yang valid!");
+                                return;
+                              }
+
+                              if (nominal > item.savedAmount) {
+                                SipekaNotification.showWarning(context, "Nominal penarikan melebihi tabungan (${formatRupiah(item.savedAmount)})!");
+                                return;
+                              }
+
+                              // Show loading
+                              showDialog(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (_) => const Center(child: CircularProgressIndicator()),
+                              );
+
+                              try {
+                                await wishlistProvider.withdrawSavings(
+                                  item.id,
+                                  nominal,
+                                  note: noteController.text.trim().isEmpty ? null : noteController.text.trim(),
+                                );
+
+                                // Sinkronisasi Transaksi (Pemasukan)
+                                if (shouldCreditWallet && (syncMode != FinanceSyncMode.disabled)) {
+                                  final targetWallet = syncMode == FinanceSyncMode.automatic ? defaultWallet : selectedWallet;
+                                  await FinanceSyncService.instance.recordWishlistTransaction(
+                                    context: context,
+                                    wishlistTitle: item.title,
+                                    amount: nominal,
+                                    walletName: targetWallet,
+                                    isWithdraw: true,
+                                  );
+                                }
+
+                                if (context.mounted) Navigator.pop(context); // Tutup loading
+                                if (ctx.mounted) Navigator.pop(ctx); // Tutup bottom sheet
+                                if (context.mounted) {
+                                  final walletMsg = shouldCreditWallet && syncMode != FinanceSyncMode.disabled
+                                      ? " (Masuk ke saldo $selectedWallet)"
+                                      : "";
+                                  SipekaNotification.showSuccess(context, "Berhasil menarik ${formatRupiah(nominal)}!$walletMsg");
+                                }
+                              } catch (e) {
+                                if (context.mounted) Navigator.pop(context); // Tutup loading
+                                if (context.mounted) SipekaNotification.showWarning(context, "Gagal menarik tabungan: $e");
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, padding: const EdgeInsets.symmetric(vertical: 15)),
+                            child: Text("TARIK TABUNGAN", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, color: Colors.white)),
+                          ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text("Saldo terkumpul:", style: GoogleFonts.nunito(color: Colors.orange[700], fontSize: 13, fontWeight: FontWeight.w600)),
-                        Text(formatRupiah(item.savedAmount), style: GoogleFonts.nunito(color: Colors.orange[700], fontSize: 15, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  TextField(
-                    controller: nominalController,
-                    autofocus: true,
-                    keyboardType: TextInputType.number,
-                    style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
-                    decoration: InputDecoration(
-                      labelText: 'Nominal Penarikan',
-                      labelStyle: const TextStyle(color: Colors.grey),
-                      filled: true,
-                      fillColor: Theme.of(context).cardColor,
-                      prefixText: "Rp ",
-                      prefixStyle: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  TextField(
-                    controller: noteController,
-                    style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
-                    decoration: InputDecoration(
-                      labelText: 'Catatan (Opsional)',
-                      hintText: 'Cth: Keperluan mendadak, beli barang',
-                      labelStyle: const TextStyle(color: Colors.grey),
-                      filled: true,
-                      fillColor: Theme.of(context).cardColor,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                    ),
-                  ),
-                  const SizedBox(height: 25),
-                  SizedBox(
-                    width: double.infinity,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(colors: [Colors.orange, Color(0xFFE65100)]),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          String cleanValue = nominalController.text.replaceAll('.', '');
-                          double nominal = double.tryParse(cleanValue) ?? 0;
-
-                          if (nominal <= 0) {
-                            SipekaNotification.showWarning(context, "Masukkan nominal yang valid!");
-                            return;
-                          }
-
-                          if (nominal > item.savedAmount) {
-                            SipekaNotification.showWarning(context, "Nominal penarikan melebihi tabungan (${formatRupiah(item.savedAmount)})!");
-                            return;
-                          }
-
-                          // Show loading
-                          showDialog(
-                            context: context,
-                            barrierDismissible: false,
-                            builder: (_) => const Center(child: CircularProgressIndicator()),
-                          );
-
-                          try {
-                            await wishlistProvider.withdrawSavings(
-                              item.id,
-                              nominal,
-                              note: noteController.text.trim().isEmpty ? null : noteController.text.trim(),
-                            );
-                            if (context.mounted) Navigator.pop(context); // Tutup loading
-                            if (ctx.mounted) Navigator.pop(ctx); // Tutup bottom sheet
-                            if (context.mounted) SipekaNotification.showSuccess(context, "Berhasil menarik ${formatRupiah(nominal)}!");
-                          } catch (e) {
-                            if (context.mounted) Navigator.pop(context); // Tutup loading
-                            if (context.mounted) SipekaNotification.showWarning(context, "Gagal menarik tabungan: $e");
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, padding: const EdgeInsets.symmetric(vertical: 15)),
-                        child: Text("TARIK TABUNGAN", style: GoogleFonts.nunito(fontWeight: FontWeight.bold, color: Colors.white)),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
