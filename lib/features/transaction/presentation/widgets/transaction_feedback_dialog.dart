@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:sipeka/core/theme/app_theme.dart';
 import 'package:sipeka/features/transaction/domain/entities/transaction_entity.dart';
 import 'package:sipeka/features/transaction/domain/entities/transaction_type.dart';
 
@@ -14,12 +15,12 @@ class TransactionFeedbackDialog extends StatefulWidget {
     required this.transaction,
   });
 
-  /// Menampilkan popup dialog ala Gojek: Ilustrasi ramah + pesan manusiawi + tombol Oke
+  /// Menampilkan popup dialog ikonik SIPEKA: Maskot Si Peka + pesan manusiawi + gradient khas SIPEKA
   static void show(BuildContext context, {required TransactionEntity transaction}) {
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
-      barrierLabel: 'DismissGojekDialog',
+      barrierLabel: 'DismissSipekaDialog',
       barrierColor: Colors.black.withValues(alpha: 0.55),
       transitionDuration: const Duration(milliseconds: 280),
       pageBuilder: (ctx, anim1, anim2) => TransactionFeedbackDialog(transaction: transaction),
@@ -79,22 +80,20 @@ class _TransactionFeedbackDialogState extends State<TransactionFeedbackDialog> {
     final currency = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
     final formattedAmount = currency.format(tx.amount);
 
-    // Salinan bahasa manusiawi, hangat, dan ramah ala Gojek
+    // Salinan bahasa manusiawi, hangat, dan bersahabat ("Teman Keuangan Kamu")
     String title;
     String description;
 
     if (isTransfer) {
-      title = "Beres, Transfer Berhasil!";
-      description = "Transfer senilai $formattedAmount sudah tercatat rapi ke dompet tujuan kamu.";
+      title = "Beres, Transfer Sukses!";
+      description = "Transfer senilai $formattedAmount sudah aman tercatat ke dompet tujuan kamu.";
     } else if (isExpense) {
-      title = "Sip, Berhasil Dicatat!";
-      description = "Pengeluaran ${tx.category} sebesar $formattedAmount sudah rapi masuk ke dompet ${tx.wallet}.";
+      title = "Sip, Sudah Dicatat!";
+      description = "Pengeluaran ${tx.category} senilai $formattedAmount sudah rapi tersimpan di dompet ${tx.wallet} kamu.";
     } else {
-      title = "Asik, Pemasukan Masuk!";
-      description = "Pemasukan sebesar $formattedAmount sudah berhasil bertambah ke saldo ${tx.wallet} kamu.";
+      title = "Asik, Cuan Masuk!";
+      description = "Pemasukan senilai $formattedAmount sudah berhasil menambah saldo dompet ${tx.wallet} kamu.";
     }
-
-    const gojekGreen = Color(0xFF00AA13);
 
     return Center(
       child: Material(
@@ -103,13 +102,18 @@ class _TransactionFeedbackDialogState extends State<TransactionFeedbackDialog> {
           width: MediaQuery.of(context).size.width * 0.86,
           constraints: const BoxConstraints(maxWidth: 340),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E2127) : Colors.white,
-            borderRadius: BorderRadius.circular(24),
+            color: isDark ? const Color(0xFF1E2129) : Colors.white,
+            borderRadius: BorderRadius.circular(26),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.15),
-                blurRadius: 28,
+                color: AppColors.primaryBlue.withValues(alpha: isDark ? 0.25 : 0.15),
+                blurRadius: 30,
                 offset: const Offset(0, 10),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.08),
+                blurRadius: 20,
+                offset: const Offset(0, 4),
               ),
             ],
             border: Border.all(
@@ -123,19 +127,29 @@ class _TransactionFeedbackDialogState extends State<TransactionFeedbackDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Ilustrasi Karakter Hangat ala Gojek
+              // Banner Maskot Ikonik SIPEKA ("Si Peka - Teman Keuangan Kamu")
               ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
                 child: Container(
-                  height: 160,
-                  color: const Color(0xFFE6F5F8),
+                  height: 168,
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFFE8F1FF), Color(0xFFD8E9FF)],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                  ),
                   child: Image.asset(
-                    'assets/images/transaction_success.jpg',
+                    'assets/images/sipeka_success.jpg',
                     fit: BoxFit.cover,
                     errorBuilder: (ctx, err, stack) => Container(
-                      color: const Color(0xFFE8F7ED),
+                      color: const Color(0xFFEBF3FF),
                       child: const Center(
-                        child: Icon(Icons.check_circle_rounded, size: 70, color: gojekGreen),
+                        child: Icon(
+                          Icons.account_balance_wallet_rounded,
+                          size: 70,
+                          color: AppColors.primaryBlue,
+                        ),
                       ),
                     ),
                   ),
@@ -143,24 +157,53 @@ class _TransactionFeedbackDialogState extends State<TransactionFeedbackDialog> {
               ),
 
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Judul Pendekatan Manusiawi
+                    // Badge Identitas SIPEKA
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryBlue.withValues(alpha: isDark ? 0.18 : 0.09),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.auto_awesome_rounded,
+                            size: 12,
+                            color: AppColors.primaryBlue,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            "SIPEKA • Teman Keuangan",
+                            style: GoogleFonts.nunito(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.primaryBlue,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Judul Hangat & Manusiawi
                     Text(
                       title,
                       textAlign: TextAlign.center,
                       style: GoogleFonts.nunito(
-                        fontSize: 19,
+                        fontSize: 20,
                         fontWeight: FontWeight.w800,
                         color: isDark ? Colors.white : const Color(0xFF1B1D21),
                         letterSpacing: -0.2,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
 
-                    // Penjelasan Santai & Bersahabat
+                    // Deskripsi Bersahabat
                     Text(
                       description,
                       textAlign: TextAlign.center,
@@ -171,15 +214,27 @@ class _TransactionFeedbackDialogState extends State<TransactionFeedbackDialog> {
                         height: 1.4,
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 18),
 
-                    // Tombol Hijau Khas Gojek "Oke"
-                    SizedBox(
+                    // Tombol Khas Gradient Biru SIPEKA
+                    Container(
                       width: double.infinity,
                       height: 48,
+                      decoration: BoxDecoration(
+                        gradient: AppColors.primaryGradient,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primaryBlue.withValues(alpha: 0.35),
+                            blurRadius: 14,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: gojekGreen,
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
                           foregroundColor: Colors.white,
                           elevation: 0,
                           shape: RoundedRectangleBorder(
@@ -188,7 +243,7 @@ class _TransactionFeedbackDialogState extends State<TransactionFeedbackDialog> {
                         ),
                         onPressed: _closeDialog,
                         child: Text(
-                          "Oke",
+                          "Oke, Siap!",
                           style: GoogleFonts.nunito(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
