@@ -39,6 +39,7 @@ class BudgetProvider with ChangeNotifier {
             DeleteBudgetUseCase(BudgetRepositoryImpl());
 
   Future<void> fetchAndSetBudgets() async {
+    if (_isLoading) return; // Mencegah fetch berulang bersamaan
     _isLoading = true;
     notifyListeners();
     try {

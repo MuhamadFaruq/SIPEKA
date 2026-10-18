@@ -34,6 +34,7 @@ class WalletProvider with ChangeNotifier {
             DeleteWalletUseCase(WalletRepositoryImpl());
 
   Future<void> fetchAndSetWallets() async {
+    if (_isLoading) return; // Mencegah fetch berulang bersamaan
     _isLoading = true;
     notifyListeners();
     try {

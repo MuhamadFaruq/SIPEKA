@@ -46,6 +46,7 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
   String? _selectedCategory;
   DateTime _selectedDate = DateTime.now();
   final TextEditingController _noteController = TextEditingController();
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -569,6 +570,8 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
   }
 
   void _saveTransaction() {
+    if (_isSaving) return;
+
     double amount = double.tryParse(_inputAmount) ?? 0;
 
     // --- AMBIL DATA NAMA DARI PROVIDER ---
@@ -586,6 +589,7 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
         return;
       }
 
+      _isSaving = true;
       final expenseTx = Transaction(
         id: const Uuid().v4(),
         title: _noteController.text.isEmpty ? "Transfer ke $_selectedTargetWallet" : _noteController.text,
@@ -623,6 +627,7 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
       return;
     }
 
+    _isSaving = true;
     final newTx = Transaction(
       id: const Uuid().v4(),
       // Gunakan null check operator ! karena sudah divalidasi di atas
@@ -756,81 +761,67 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
     }
   }
 
-  void _executeSaveTransfer(Transaction expenseTx, Transaction incomeTx) async {
-    // Tampilkan loading dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => const Center(child: CircularProgressIndicator()),
-    );
+  void _executeSaveTransfer(Transaction expenseTx, Transaction incomeTx) {
+    HapticFeedback.lightImpact();
+    
+    // 1. Ambil instance provider sebelum menutup screen
+    final txProvider = Provider.of<TransactionProvider>(context, listen: false);
 
-    try {
-      final txProvider = Provider.of<TransactionProvider>(context, listen: false);
-      final success1 = await txProvider.addTransaction(expenseTx);
-      final success2 = await txProvider.addTransaction(incomeTx);
-      
-      // Tutup loading dialog secara aman
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
-      
-      if (success1 && success2) {
-        if (mounted) {
-          Navigator.pop(context); // Kembali ke screen sebelumnya
-          Future.delayed(const Duration(milliseconds: 280), () {
-            final activeCtx = navigatorKey.currentContext;
-            if (activeCtx != null) {
-              TransactionFeedbackDialog.show(activeCtx, transaction: expenseTx);
-            }
-          });
-        }
-      } else {
-        if (mounted) {
-          SipekaNotification.showWarning(context, "Gagal menyimpan transaksi transfer.");
+    // 2. Tutup screen seketika (Optimistic UI — zero freeze)
+    Navigator.pop(context);
+
+    // 3. Tampilkan popup mindful feedback Gojek-style di layar induk
+    Future.delayed(const Duration(milliseconds: 140), () {
+      final activeCtx = navigatorKey.currentContext;
+      if (activeCtx != null) {
+        TransactionFeedbackDialog.show(activeCtx, transaction: expenseTx);
+      }
+    });
+
+    // 4. Sinkronisasi ke Firestore di background tanpa mengunci UI
+    Future.wait([
+      txProvider.addTransaction(expenseTx),
+      txProvider.addTransaction(incomeTx),
+    ]).then((results) {
+      if (!results.every((r) => r)) {
+        final activeCtx = navigatorKey.currentContext;
+        if (activeCtx != null) {
+          SipekaNotification.showWarning(activeCtx, "Gagal menyelaraskan sebagian transaksi transfer.");
         }
       }
-    } catch (e) {
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
-      if (mounted) {
-        SipekaNotification.showWarning(context, "Terjadi kesalahan: $e");
-      }
-    }
+    }).catchError((e) {
+      debugPrint("Background save transfer error: $e");
+    });
   }
 
-  void _executeSave(Transaction newTx) async {
-    // Tampilkan loading dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => const Center(child: CircularProgressIndicator()),
-    );
+  void _executeSave(Transaction newTx) {
+    HapticFeedback.lightImpact();
+    
+    // 1. Ambil instance provider sebelum menutup screen
+    final txProvider = Provider.of<TransactionProvider>(context, listen: false);
 
-    try {
-      final success = await Provider.of<TransactionProvider>(context, listen: false).addTransaction(newTx);
-      
-      // Tutup loading dialog secara aman
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
-      
-      if (success) {
-        if (mounted) {
-          Navigator.pop(context); // Kembali ke screen sebelumnya menggunakan screen's navigator
-          Future.delayed(const Duration(milliseconds: 280), () {
-            final activeCtx = navigatorKey.currentContext;
-            if (activeCtx != null) {
-              TransactionFeedbackDialog.show(activeCtx, transaction: newTx);
-            }
-          });
-        }
-      } else {
-        if (mounted) {
-          SipekaNotification.showWarning(context, "Gagal menyimpan transaksi ke database.");
+    // 2. Tutup screen seketika (Optimistic UI — zero freeze)
+    Navigator.pop(context);
+
+    // 3. Tampilkan popup mindful feedback Gojek-style di layar induk
+    Future.delayed(const Duration(milliseconds: 140), () {
+      final activeCtx = navigatorKey.currentContext;
+      if (activeCtx != null) {
+        TransactionFeedbackDialog.show(activeCtx, transaction: newTx);
+      }
+    });
+
+    // 4. Sinkronisasi ke Firestore di background tanpa mengunci UI
+    txProvider.addTransaction(newTx).then((success) {
+      if (!success) {
+        final activeCtx = navigatorKey.currentContext;
+        if (activeCtx != null) {
+          SipekaNotification.showWarning(activeCtx, "Gagal menyelaraskan transaksi ke database.");
         }
       }
-    } catch (e) {
-      // Tutup loading jika error secara aman
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
-      if (mounted) {
-        SipekaNotification.showWarning(context, "Terjadi kesalahan: $e");
-      }
-    }
+    }).catchError((e) {
+      debugPrint("Background save transaction error: $e");
+    });
   }
 
   void _showOverspendingWarningDialog(double limit, double totalProjected, VoidCallback onConfirm) {
@@ -886,7 +877,10 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(ctx),
+              onPressed: () {
+                _isSaving = false;
+                Navigator.pop(ctx);
+              },
               child: Text("BATAL", style: GoogleFonts.nunito(color: Colors.grey, fontWeight: FontWeight.bold)),
             ),
             ElevatedButton(

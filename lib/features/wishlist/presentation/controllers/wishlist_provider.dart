@@ -40,13 +40,20 @@ class WishlistProvider with ChangeNotifier {
         getWishlistHistoryUseCase = getWishlistHistoryUseCase ??
             GetWishlistHistoryUseCase(WishlistRepositoryImpl());
 
+  bool _isLoading = false;
+  bool get isLoading => _isLoading;
+
   Future<void> fetchAndSetWishlist() async {
+    if (_isLoading) return;
+    _isLoading = true;
     try {
       final dataList = await getWishlistUseCase();
       _items = List<WishlistEntity>.from(dataList);
       notifyListeners();
     } catch (e) {
       debugPrint("Error fetching wishlist: $e");
+    } finally {
+      _isLoading = false;
     }
   }
 

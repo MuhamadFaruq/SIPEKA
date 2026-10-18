@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -350,38 +351,31 @@ class _DebtScreenState extends State<DebtScreen> {
           style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent),
           onPressed: () async {
             if (nameC.text.isNotEmpty && amountC.text.isNotEmpty) {
-              // Tampilkan loading dialog
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (ctx) => const Center(child: CircularProgressIndicator()),
-              );
+              HapticFeedback.lightImpact();
+              Navigator.pop(context); // Tutup form/sheet seketika
 
               final provider = Provider.of<DebtProvider>(context, listen: false);
               double cleanAmount = double.parse(amountC.text.replaceAll('.', ''));
 
-              try {
-                if (isEdit) {
-                  await provider.updateDebt(debt!.id, nameC.text, cleanAmount, notesC.text);
-                  if (context.mounted) Navigator.pop(context); // Tutup loading dialog
-                  if (context.mounted) Navigator.pop(context); // Tutup form/sheet
+              if (isEdit) {
+                provider.updateDebt(debt!.id, nameC.text, cleanAmount, notesC.text).then((_) {
                   if (context.mounted) SipekaNotification.showSuccess(context, "Berhasil diperbarui!");
-                } else {
-                  await provider.addDebt(Debt(
-                    id: const Uuid().v4(),
-                    name: nameC.text,
-                    amount: cleanAmount,
-                    date: DateTime.now(),
-                    type: _isHutangMode ? 'Borrowed' : 'Lent',
-                    notes: notesC.text,
-                  ));
-                  if (context.mounted) Navigator.pop(context); // Tutup loading dialog
-                  if (context.mounted) Navigator.pop(context); // Tutup form/sheet
+                }).catchError((e) {
+                  if (context.mounted) SipekaNotification.showWarning(context, "Gagal memperbarui: $e");
+                });
+              } else {
+                provider.addDebt(Debt(
+                  id: const Uuid().v4(),
+                  name: nameC.text,
+                  amount: cleanAmount,
+                  date: DateTime.now(),
+                  type: _isHutangMode ? 'Borrowed' : 'Lent',
+                  notes: notesC.text,
+                )).then((_) {
                   if (context.mounted) SipekaNotification.showSuccess(context, "Catatan berhasil disimpan!");
-                }
-              } catch (e) {
-                if (context.mounted) Navigator.pop(context); // Tutup loading dialog
-                if (context.mounted) SipekaNotification.showWarning(context, "Gagal menyimpan: $e");
+                }).catchError((e) {
+                  if (context.mounted) SipekaNotification.showWarning(context, "Gagal menyimpan: $e");
+                });
               }
             } else {
               SipekaNotification.showWarning(context, "Mohon isi semua data!");

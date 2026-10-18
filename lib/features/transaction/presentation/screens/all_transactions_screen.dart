@@ -792,26 +792,19 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                                 source: tx.source,
                               );
 
-                              // Show loading
-                              showDialog(
-                                context: context,
-                                barrierDismissible: false,
-                                builder: (_) => const Center(child: CircularProgressIndicator()),
-                              );
+                              HapticFeedback.lightImpact();
+                              Navigator.pop(ctx); // Tutup bottom sheet seketika
 
                               final txProvider = Provider.of<TransactionProvider>(context, listen: false);
-                              final success = await txProvider.updateTransaction(updatedTx);
-
-                              if (context.mounted) Navigator.of(context, rootNavigator: true).pop(); // close loading
-                              if (ctx.mounted) Navigator.pop(ctx); // close bottom sheet
-
-                              if (context.mounted) {
-                                if (success) {
-                                  SipekaNotification.showSuccess(context, "Transaksi berhasil diperbarui!");
-                                } else {
-                                  SipekaNotification.showWarning(context, "Gagal memperbarui transaksi.");
+                              txProvider.updateTransaction(updatedTx).then((success) {
+                                if (context.mounted) {
+                                  if (success) {
+                                    SipekaNotification.showSuccess(context, "Transaksi berhasil diperbarui!");
+                                  } else {
+                                    SipekaNotification.showWarning(context, "Gagal memperbarui transaksi.");
+                                  }
                                 }
-                              }
+                              });
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.transparent,

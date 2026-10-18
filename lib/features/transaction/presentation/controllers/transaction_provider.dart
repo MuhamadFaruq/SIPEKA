@@ -62,6 +62,7 @@ class TransactionProvider with ChangeNotifier {
 
   // --- FETCH DATA (FIRESTORE) ---
   Future<void> fetchAndSetTransactions() async {
+    if (_isLoading) return; // Mencegah fetch berulang bersamaan
     _isLoading = true;
     notifyListeners();
     try {

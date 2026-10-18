@@ -291,49 +291,38 @@ class _BudgetScreenState extends State<BudgetScreen> {
                 return;
               }
 
-              // Tampilkan loading dialog
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (loadCtx) => const Center(child: CircularProgressIndicator()),
-              );
+              HapticFeedback.lightImpact();
+              Navigator.pop(ctx); // Tutup bottom sheet seketika
 
               final budgetProvider = Provider.of<BudgetProvider>(mainContext, listen: false);
 
-              try {
-                if (isEditing) {
-                  await budgetProvider.updateBudget(budget.id, name, limit, selectedIconCode);
-                } else {
-                  await budgetProvider.addBudget(
-                    Budget(
-                      id: const Uuid().v4(),
-                      category: name,
-                      limit: limit,
-                      iconCode: selectedIconCode,
-                    ),
-                  );
-                }
-                
-                // Tutup loading dialog
-                if (ctx.mounted) Navigator.pop(ctx); 
-                // Tutup bottom sheet
-                if (ctx.mounted) Navigator.pop(ctx); 
-                
-                if (mainContext.mounted) {
-                  SipekaNotification.showSuccess(
-                    mainContext, 
-                    isEditing ? "Anggaran diperbarui!" : "Anggaran baru ditambahkan!"
-                  );
-                }
-              } catch (e) {
-                // Tutup loading dialog jika error
-                if (ctx.mounted) Navigator.pop(ctx); 
-                if (mainContext.mounted) {
-                  SipekaNotification.showWarning(
-                    mainContext, 
-                    "Gagal menyimpan anggaran: $e"
-                  );
-                }
+              if (isEditing) {
+                budgetProvider.updateBudget(budget.id, name, limit, selectedIconCode).then((_) {
+                  if (mainContext.mounted) {
+                    SipekaNotification.showSuccess(mainContext, "Anggaran diperbarui!");
+                  }
+                }).catchError((e) {
+                  if (mainContext.mounted) {
+                    SipekaNotification.showWarning(mainContext, "Gagal memperbarui anggaran: $e");
+                  }
+                });
+              } else {
+                budgetProvider.addBudget(
+                  Budget(
+                    id: const Uuid().v4(),
+                    category: name,
+                    limit: limit,
+                    iconCode: selectedIconCode,
+                  ),
+                ).then((_) {
+                  if (mainContext.mounted) {
+                    SipekaNotification.showSuccess(mainContext, "Anggaran baru ditambahkan!");
+                  }
+                }).catchError((e) {
+                  if (mainContext.mounted) {
+                    SipekaNotification.showWarning(mainContext, "Gagal menambah anggaran: $e");
+                  }
+                });
               }
             }
 

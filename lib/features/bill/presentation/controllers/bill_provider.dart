@@ -34,7 +34,10 @@ class BillProvider with ChangeNotifier {
         updateBillUseCase = updateBillUseCase ?? UpdateBillUseCase(BillRepositoryImpl()),
         deleteBillUseCase = deleteBillUseCase ?? DeleteBillUseCase(BillRepositoryImpl());
 
+  bool _isProcessingBills = false;
+
   Future<void> fetchBills() async {
+    if (_isLoading) return;
     _isLoading = true;
     notifyListeners();
     try {
@@ -104,10 +107,13 @@ class BillProvider with ChangeNotifier {
 
   // --- AUTOMATIC BILLING CHECK & EXECUTION ---
   Future<void> processRecurringBills(BuildContext context) async {
-    final txProvider = Provider.of<TransactionProvider>(context, listen: false);
-    await fetchBills();
-    final today = DateTime.now();
-    bool updatedAny = false;
+    if (_isProcessingBills) return;
+    _isProcessingBills = true;
+    try {
+      final txProvider = Provider.of<TransactionProvider>(context, listen: false);
+      await fetchBills();
+      final today = DateTime.now();
+      bool updatedAny = false;
 
     for (int i = 0; i < _bills.length; i++) {
       final bill = _bills[i];
@@ -169,7 +175,10 @@ class BillProvider with ChangeNotifier {
       notifyListeners();
       await txProvider.fetchAndSetTransactions();
     }
+  } finally {
+    _isProcessingBills = false;
   }
+}
 
   DateTime _calculateNextDate(DateTime currentDate, String frequency) {
     switch (frequency.toLowerCase()) {

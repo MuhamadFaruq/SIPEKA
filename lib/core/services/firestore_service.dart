@@ -126,6 +126,7 @@ class FirestoreService {
       await batch.commit();
     }
     // Re-seed default wallets
+    invalidateWalletsCache();
     await seedDefaultWalletsIfNeeded();
     debugPrint("FIRESTORE: Semua data user berhasil dihapus.");
   }
@@ -181,10 +182,21 @@ class FirestoreService {
     });
   }
 
-  /// Mendapatkan semua wallets sebagai List<Map>
-  Future<List<Map<String, dynamic>>> getAllWallets() async {
+  List<Map<String, dynamic>>? _cachedWallets;
+
+  /// Invalidate cache dompet saat ada penambahan/perubahan/penghapusan
+  void invalidateWalletsCache() {
+    _cachedWallets = null;
+  }
+
+  /// Mendapatkan semua wallets sebagai List<Map> dengan caching in-memory super cepat
+  Future<List<Map<String, dynamic>>> getAllWallets({bool forceRefresh = false}) async {
+    if (_cachedWallets != null && !forceRefresh) {
+      return _cachedWallets!;
+    }
     final snapshot = await userCollection('wallets').get();
-    return snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+    _cachedWallets = snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+    return _cachedWallets!;
   }
 
   /// Mendapatkan riwayat pesan AI chat (terurut timestamp ascending)

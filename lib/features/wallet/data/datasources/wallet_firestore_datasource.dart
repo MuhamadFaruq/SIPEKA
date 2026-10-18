@@ -37,6 +37,7 @@ class WalletFirestoreDataSource implements WalletDataSource {
 
   @override
   Future<void> insertWallet(WalletModel wallet) async {
+    _firestoreService.invalidateWalletsCache();
     await _firestoreService.userCollection('wallets').doc(wallet.id).set({
       'name': wallet.name,
       'initial_balance': wallet.initialBalance,
@@ -51,6 +52,7 @@ class WalletFirestoreDataSource implements WalletDataSource {
 
   @override
   Future<void> updateWallet(WalletModel wallet) async {
+    _firestoreService.invalidateWalletsCache();
     await _firestoreService.userCollection('wallets').doc(wallet.id).update({
       'name': wallet.name,
       'initial_balance': wallet.initialBalance,
@@ -65,12 +67,14 @@ class WalletFirestoreDataSource implements WalletDataSource {
 
   @override
   Future<void> deleteWallet(String id) async {
+    _firestoreService.invalidateWalletsCache();
     await _firestoreService.userCollection('wallets').doc(id).delete();
     debugPrint("FIRESTORE: deleteWallet OK, id=$id");
   }
 
   @override
   Future<void> clearWallets() async {
+    _firestoreService.invalidateWalletsCache();
     final snapshot = await _firestoreService.userCollection('wallets').get();
     for (final doc in snapshot.docs) {
       await doc.reference.delete();

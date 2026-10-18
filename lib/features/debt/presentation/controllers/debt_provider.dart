@@ -44,13 +44,20 @@ class DebtProvider with ChangeNotifier {
         markDebtPaidUseCase = markDebtPaidUseCase ??
             MarkDebtPaidUseCase(DebtRepositoryImpl());
 
+  bool _isLoading = false;
+  bool get isLoading => _isLoading;
+
   Future<void> fetchAndSetDebts() async {
+    if (_isLoading) return;
+    _isLoading = true;
     try {
       final dataList = await getDebtsUseCase();
       _debts = List<DebtEntity>.from(dataList);
       notifyListeners();
     } catch (e) {
       debugPrint("Error fetching debts: $e");
+    } finally {
+      _isLoading = false;
     }
   }
 

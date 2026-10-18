@@ -60,7 +60,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
-    _widgetClickedSubscription?.cancel();
+    try {
+      _widgetClickedSubscription?.cancel();
+    } catch (_) {}
     super.dispose();
   }
 
