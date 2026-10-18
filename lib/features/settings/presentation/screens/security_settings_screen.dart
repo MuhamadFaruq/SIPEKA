@@ -116,11 +116,13 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
               return ListView(
                 padding: const EdgeInsets.all(20),
                 children: [
+                  // --- KELOMPOK 1: AKSES APLIKASI ---
                   _buildSectionTitle(context, "Akses Aplikasi"),
                   _buildCard(
                     context: context,
                     child: Column(
                       children: [
+                        // Kunci PIN (Fitur Utama)
                         ListTile(
                           leading: Container(
                             padding: const EdgeInsets.all(8),
@@ -139,7 +141,9 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                             style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.bold),
                           ),
                           subtitle: Text(
-                            isPinEnabled ? "Aplikasi terlindungi PIN 6-digit" : "Kunci PIN nonaktif",
+                            isPinEnabled
+                                ? "Aplikasi terlindungi PIN 6-digit"
+                                : "Kunci PIN nonaktif (Aktifkan untuk proteksi)",
                             style: GoogleFonts.nunito(fontSize: 11),
                           ),
                           trailing: Switch(
@@ -170,139 +174,214 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                             },
                           ),
                         ),
-                        if (isPinEnabled) ...[
-                          const Divider(height: 1),
-                          ListTile(
-                            leading: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: (isBiometricEnabled ? Colors.teal : Colors.grey).withValues(alpha: 0.1),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.fingerprint_rounded,
-                                color: isBiometricEnabled ? Colors.teal : Colors.grey,
-                                size: 20,
-                              ),
+                        const Divider(height: 1),
+                        // Sidik Jari / Face ID (Selalu Tampil, Disabled jika belum ada PIN)
+                        ListTile(
+                          leading: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: (isPinEnabled && isBiometricEnabled ? Colors.teal : Colors.grey)
+                                  .withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
                             ),
-                            title: Text(
-                              "Sidik Jari / Face ID",
-                              style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.bold),
-                            ),
-                            subtitle: Text(
-                              isBiometricEnabled ? "Biometrik aktif untuk buka instan" : "Gunakan biometrik untuk buka cepat",
-                              style: GoogleFonts.nunito(fontSize: 11),
-                            ),
-                            trailing: Switch(
-                              value: isBiometricEnabled,
-                              activeThumbColor: Colors.teal,
-                              onChanged: (bool value) async {
-                                if (value) {
-                                  bool canAuth = await AuthService().authenticateWithBiometrics();
-                                  if (canAuth) {
-                                    await prefs.setBool('is_biometric_enabled', true);
-                                    setTileState(() => isBiometricEnabled = true);
-                                    if (context.mounted) {
-                                      SipekaNotification.showSuccess(context, "Biometrik diaktifkan!");
-                                    }
-                                  }
-                                } else {
-                                  await prefs.setBool('is_biometric_enabled', false);
-                                  setTileState(() => isBiometricEnabled = false);
-                                }
-                              },
+                            child: Icon(
+                              Icons.fingerprint_rounded,
+                              color: (isPinEnabled && isBiometricEnabled) ? Colors.teal : Colors.grey,
+                              size: 20,
                             ),
                           ),
-                        ],
+                          title: Text(
+                            "Sidik Jari / Face ID",
+                            style: GoogleFonts.nunito(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: isPinEnabled ? null : Colors.grey,
+                            ),
+                          ),
+                          subtitle: Text(
+                            !isPinEnabled
+                                ? "Perlu aktifkan Kunci PIN terlebih dahulu"
+                                : (isBiometricEnabled
+                                    ? "Biometrik aktif untuk buka instan"
+                                    : "Gunakan biometrik untuk buka cepat"),
+                            style: GoogleFonts.nunito(
+                              fontSize: 11,
+                              color: isPinEnabled ? null : Colors.grey,
+                            ),
+                          ),
+                          trailing: Switch(
+                            value: isPinEnabled && isBiometricEnabled,
+                            activeThumbColor: Colors.teal,
+                            onChanged: !isPinEnabled
+                                ? null
+                                : (bool value) async {
+                                    if (value) {
+                                      bool canAuth = await AuthService().authenticateWithBiometrics();
+                                      if (canAuth) {
+                                        await prefs.setBool('is_biometric_enabled', true);
+                                        setTileState(() => isBiometricEnabled = true);
+                                        if (context.mounted) {
+                                          SipekaNotification.showSuccess(context, "Biometrik diaktifkan!");
+                                        }
+                                      }
+                                    } else {
+                                      await prefs.setBool('is_biometric_enabled', false);
+                                      setTileState(() => isBiometricEnabled = false);
+                                    }
+                                  },
+                          ),
+                          onTap: !isPinEnabled
+                              ? () => SipekaNotification.showWarning(
+                                    context,
+                                    "Aktifkan Kunci PIN terlebih dahulu!",
+                                  )
+                              : null,
+                        ),
                       ],
                     ),
                   ),
 
-                  if (isPinEnabled) ...[
-                    const SizedBox(height: 25),
-                    _buildSectionTitle(context, "Kenyamanan & Privasi Layar"),
-                    _buildCard(
-                      context: context,
-                      child: Column(
-                        children: [
-                          ListTile(
-                            leading: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: (isAutolockEnabled ? Colors.orange : Colors.grey).withValues(alpha: 0.1),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.timer_outlined,
-                                color: isAutolockEnabled ? Colors.orange : Colors.grey,
-                                size: 20,
-                              ),
+                  const SizedBox(height: 25),
+
+                  // --- KELOMPOK 2: KENYAMANAN & PRIVASI LAYAR ---
+                  _buildSectionTitle(context, "Kenyamanan & Privasi Layar"),
+                  _buildCard(
+                    context: context,
+                    child: Column(
+                      children: [
+                        // Kunci Otomatis (Idle)
+                        ListTile(
+                          leading: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: (isPinEnabled && isAutolockEnabled ? Colors.orange : Colors.grey)
+                                  .withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
                             ),
-                            title: Text(
-                              "Kunci Otomatis (Idle)",
-                              style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.bold),
-                            ),
-                            subtitle: Text(
-                              isAutolockEnabled ? "Kunci otomatis saat 15s di latar belakang" : "Kunci otomatis nonaktif",
-                              style: GoogleFonts.nunito(fontSize: 11),
-                            ),
-                            trailing: Switch(
-                              value: isAutolockEnabled,
-                              activeThumbColor: Colors.orange,
-                              onChanged: (bool value) async {
-                                await prefs.setBool('is_autolock_enabled', value);
-                                setTileState(() => isAutolockEnabled = value);
-                              },
+                            child: Icon(
+                              Icons.timer_outlined,
+                              color: (isPinEnabled && isAutolockEnabled) ? Colors.orange : Colors.grey,
+                              size: 20,
                             ),
                           ),
-                          const Divider(height: 1),
-                          ListTile(
-                            leading: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: (isBlurEnabled ? Colors.purple : Colors.grey).withValues(alpha: 0.1),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.blur_on_rounded,
-                                color: isBlurEnabled ? Colors.purple : Colors.grey,
-                                size: 20,
-                              ),
-                            ),
-                            title: Text(
-                              "Blur di App Switcher",
-                              style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.bold),
-                            ),
-                            subtitle: Text(
-                              isBlurEnabled ? "Samarkan isi aplikasi saat berganti aplikasi" : "Tampilan aplikasi terlihat jelas",
-                              style: GoogleFonts.nunito(fontSize: 11),
-                            ),
-                            trailing: Switch(
-                              value: isBlurEnabled,
-                              activeThumbColor: Colors.purple,
-                              onChanged: (bool value) async {
-                                await prefs.setBool('is_blur_enabled', value);
-                                setTileState(() => isBlurEnabled = value);
-                              },
+                          title: Text(
+                            "Kunci Otomatis (Idle)",
+                            style: GoogleFonts.nunito(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: isPinEnabled ? null : Colors.grey,
                             ),
                           ),
-                        ],
-                      ),
+                          subtitle: Text(
+                            !isPinEnabled
+                                ? "Kunci otomatis saat 15s di latar belakang (Perlu PIN)"
+                                : (isAutolockEnabled
+                                    ? "Kunci otomatis saat 15s di latar belakang"
+                                    : "Kunci otomatis nonaktif"),
+                            style: GoogleFonts.nunito(
+                              fontSize: 11,
+                              color: isPinEnabled ? null : Colors.grey,
+                            ),
+                          ),
+                          trailing: Switch(
+                            value: isPinEnabled && isAutolockEnabled,
+                            activeThumbColor: Colors.orange,
+                            onChanged: !isPinEnabled
+                                ? null
+                                : (bool value) async {
+                                    await prefs.setBool('is_autolock_enabled', value);
+                                    setTileState(() => isAutolockEnabled = value);
+                                  },
+                          ),
+                          onTap: !isPinEnabled
+                              ? () => SipekaNotification.showWarning(
+                                    context,
+                                    "Aktifkan Kunci PIN terlebih dahulu!",
+                                  )
+                              : null,
+                        ),
+                        const Divider(height: 1),
+                        // Blur di App Switcher
+                        ListTile(
+                          leading: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: (isPinEnabled && isBlurEnabled ? Colors.purple : Colors.grey)
+                                  .withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.blur_on_rounded,
+                              color: (isPinEnabled && isBlurEnabled) ? Colors.purple : Colors.grey,
+                              size: 20,
+                            ),
+                          ),
+                          title: Text(
+                            "Blur di App Switcher",
+                            style: GoogleFonts.nunito(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: isPinEnabled ? null : Colors.grey,
+                            ),
+                          ),
+                          subtitle: Text(
+                            !isPinEnabled
+                                ? "Samarkan aplikasi saat beralih aplikasi (Perlu PIN)"
+                                : (isBlurEnabled
+                                    ? "Samarkan isi aplikasi saat berganti aplikasi"
+                                    : "Tampilan aplikasi terlihat jelas"),
+                            style: GoogleFonts.nunito(
+                              fontSize: 11,
+                              color: isPinEnabled ? null : Colors.grey,
+                            ),
+                          ),
+                          trailing: Switch(
+                            value: isPinEnabled && isBlurEnabled,
+                            activeThumbColor: Colors.purple,
+                            onChanged: !isPinEnabled
+                                ? null
+                                : (bool value) async {
+                                    await prefs.setBool('is_blur_enabled', value);
+                                    setTileState(() => isBlurEnabled = value);
+                                  },
+                          ),
+                          onTap: !isPinEnabled
+                              ? () => SipekaNotification.showWarning(
+                                    context,
+                                    "Aktifkan Kunci PIN terlebih dahulu!",
+                                  )
+                              : null,
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 25),
-                    _buildSectionTitle(context, "Kredensial & Pemulihan"),
-                    _buildCard(
+                  ),
+
+                  const SizedBox(height: 25),
+
+                  // --- KELOMPOK 3: KREDENSIAL & PEMULIHAN ---
+                  _buildSectionTitle(context, "Kredensial & Pemulihan"),
+                  _buildCard(
+                    context: context,
+                    child: _buildListTile(
                       context: context,
-                      child: _buildListTile(
-                        context: context,
-                        icon: Icons.security_rounded,
-                        title: "Ubah PIN & Pertanyaan Pemulihan",
-                        subtitle: "Ganti kode keamanan PIN dan pertanyaan rahasia",
-                        color: Colors.blueGrey,
-                        onTap: () => _showSetupPinDialog(context, (success) {}),
-                      ),
+                      icon: Icons.security_rounded,
+                      title: "Ubah PIN & Pertanyaan Pemulihan",
+                      subtitle: isPinEnabled
+                          ? "Ganti kode keamanan PIN dan pertanyaan rahasia"
+                          : "Belum ada PIN yang aktif (Aktifkan PIN terlebih dahulu)",
+                      color: isPinEnabled ? Colors.blueGrey : Colors.grey,
+                      onTap: () {
+                        if (!isPinEnabled) {
+                          SipekaNotification.showWarning(
+                            context,
+                            "Aktifkan Kunci PIN terlebih dahulu!",
+                          );
+                        } else {
+                          _showSetupPinDialog(context, (success) {});
+                        }
+                      },
                     ),
-                  ],
+                  ),
                 ],
               );
             },
