@@ -2,8 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
-import 'package:sipeka/core/services/transaction_sentiment_service.dart';
 import 'package:sipeka/features/transaction/domain/entities/transaction_entity.dart';
 import 'package:sipeka/features/transaction/domain/entities/transaction_type.dart';
 
@@ -15,13 +13,13 @@ class TransactionFeedbackDialog extends StatefulWidget {
     required this.transaction,
   });
 
-  /// Menampilkan pop-up feedback ringan di tengah layar dengan transisi lembut
+  /// Menampilkan HUD animasi sukses yang singkat, padat, dan manusiawi di tengah layar
   static void show(BuildContext context, {required TransactionEntity transaction}) {
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
       barrierLabel: 'DismissFeedbackDialog',
-      barrierColor: Colors.black.withValues(alpha: 0.5),
+      barrierColor: Colors.black.withValues(alpha: 0.35),
       transitionDuration: const Duration(milliseconds: 260),
       pageBuilder: (ctx, anim1, anim2) => TransactionFeedbackDialog(transaction: transaction),
       transitionBuilder: (ctx, anim, secondaryAnim, child) {
@@ -41,20 +39,50 @@ class TransactionFeedbackDialog extends StatefulWidget {
   State<TransactionFeedbackDialog> createState() => _TransactionFeedbackDialogState();
 }
 
-class _TransactionFeedbackDialogState extends State<TransactionFeedbackDialog> {
-  bool _hasReacted = false;
-  String? _selectedEmoji;
-  String? _responseText;
+class _TransactionFeedbackDialogState extends State<TransactionFeedbackDialog>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _checkAnimation;
+  late Animation<double> _textAnimation;
   Timer? _dismissTimer;
-
-  static const int _autoCloseSeconds = 4;
 
   @override
   void initState() {
     super.initState();
-    // Auto-dismiss senyap di background tanpa menampilkan timer robotik
-    _dismissTimer = Timer(const Duration(seconds: _autoCloseSeconds), () {
-      if (mounted && !_hasReacted) {
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+
+    // 1. Lingkaran membal membesar
+    _scaleAnimation = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.0, 0.45, curve: Curves.elasticOut),
+    );
+
+    // 2. Garis centang terlukis
+    _checkAnimation = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.35, 0.85, curve: Curves.easeInOutCubic),
+    );
+
+    // 3. Teks manusiawi muncul lembut
+    _textAnimation = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.40, 1.0, curve: Curves.easeOutBack),
+    );
+
+    _controller.forward();
+
+    // Haptic feedback halus saat tanda centang terlukis
+    Future.delayed(const Duration(milliseconds: 250), () {
+      if (mounted) HapticFeedback.mediumImpact();
+    });
+
+    // Auto-dismiss cepat (1.5 detik), singkat, padat, tanpa membebani user
+    _dismissTimer = Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) {
         Navigator.of(context, rootNavigator: true).pop();
       }
     });
@@ -63,377 +91,180 @@ class _TransactionFeedbackDialogState extends State<TransactionFeedbackDialog> {
   @override
   void dispose() {
     _dismissTimer?.cancel();
+    _controller.dispose();
     super.dispose();
   }
 
-  void _onSelectReaction({
-    required String sentimentKey,
-    required String emoji,
-    required String friendlyResponse,
-  }) async {
-    if (_hasReacted) return;
+  String _getHumanFriendlyTitle() {
+    final tx = widget.transaction;
+    final isTransfer = tx.category.toLowerCase().contains('transfer') ||
+        tx.title.toLowerCase().contains('transfer');
 
-    HapticFeedback.lightImpact();
-    _dismissTimer?.cancel();
+    if (isTransfer) {
+      return "Beres, transfer selesai!";
+    } else if (tx.type == TransactionType.income) {
+      return "Asik, cuan masuk!";
+    } else {
+      return "Sip, tercatat!";
+    }
+  }
 
-    setState(() {
-      _hasReacted = true;
-      _selectedEmoji = emoji;
-      _responseText = friendlyResponse;
-    });
+  Color _getAccentColor() {
+    final tx = widget.transaction;
+    final isTransfer = tx.category.toLowerCase().contains('transfer') ||
+        tx.title.toLowerCase().contains('transfer');
 
-    await TransactionSentimentService.saveSentiment(widget.transaction.id, sentimentKey);
-
-    // Respons hangat muncul sekejap, lalu menutup otomatis
-    await Future.delayed(const Duration(milliseconds: 700));
-    if (mounted) {
-      Navigator.of(context, rootNavigator: true).pop();
+    if (isTransfer) {
+      return const Color(0xFF007AFF); // Apple Blue
+    } else if (tx.type == TransactionType.income) {
+      return const Color(0xFF10B981); // Emerald Green
+    } else {
+      return const Color(0xFF10B981); // Crisp Success Green
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isExpense = widget.transaction.type == TransactionType.expense;
-    final isTransfer = widget.transaction.category.toLowerCase().contains('transfer');
+    final accentColor = _getAccentColor();
+    final humanTitle = _getHumanFriendlyTitle();
 
-    final currencyFormat = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
-    final formattedAmount = currencyFormat.format(widget.transaction.amount);
-
-    final rawTitle = widget.transaction.title.trim();
-    final rawCat = widget.transaction.category.trim();
-    final displayTitle = (rawTitle.isNotEmpty && rawTitle.toLowerCase() != rawCat.toLowerCase())
-        ? rawTitle
-        : rawCat;
-
-    return Center(
-      child: Material(
-        color: Colors.transparent,
-        child: Container(
-          width: MediaQuery.of(context).size.width * 0.85,
-          constraints: const BoxConstraints(maxWidth: 340),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.12),
-                blurRadius: 24,
-                offset: const Offset(0, 8),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => Navigator.of(context, rootNavigator: true).pop(),
+      child: Center(
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 40),
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 22),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1C1E24) : Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.12),
+                  blurRadius: 26,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.10)
+                    : Colors.black.withValues(alpha: 0.05),
+                width: 1.2,
               ),
-            ],
-            border: Border.all(
-              color: isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.06),
-              width: 1,
+            ),
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) {
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Lingkaran Centang Beranimasi
+                    Transform.scale(
+                      scale: _scaleAnimation.value,
+                      child: Container(
+                        width: 62,
+                        height: 62,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: accentColor,
+                          boxShadow: [
+                            BoxShadow(
+                              color: accentColor.withValues(alpha: 0.38),
+                              blurRadius: 16,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: CustomPaint(
+                          painter: _AnimatedCheckmarkPainter(
+                            progress: _checkAnimation.value,
+                            color: Colors.white,
+                            strokeWidth: 3.6,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Teks Pendekatan Manusiawi (2-3 Kata)
+                    Transform.scale(
+                      scale: _textAnimation.value,
+                      child: Opacity(
+                        opacity: _textAnimation.value.clamp(0.0, 1.0),
+                        child: Text(
+                          humanTitle,
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.nunito(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? Colors.white : const Color(0xFF1A1D20),
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
-          child: _hasReacted
-              ? _buildSuccessView(isDark)
-              : _buildMainView(
-                  context: context,
-                  isDark: isDark,
-                  isExpense: isExpense,
-                  isTransfer: isTransfer,
-                  displayTitle: displayTitle,
-                  formattedAmount: formattedAmount,
-                ),
         ),
       ),
     );
   }
+}
 
-  Widget _buildSuccessView(bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            _selectedEmoji ?? "✨",
-            style: const TextStyle(fontSize: 38),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            _responseText ?? "Tercatat!",
-            textAlign: TextAlign.center,
-            style: GoogleFonts.nunito(
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              color: isDark ? Colors.white : Colors.black87,
-            ),
-          ),
-        ],
-      ),
-    );
+/// Painter untuk menggambar goresan tanda centang secara dinamis dan mulus
+class _AnimatedCheckmarkPainter extends CustomPainter {
+  final double progress;
+  final Color color;
+  final double strokeWidth;
+
+  _AnimatedCheckmarkPainter({
+    required this.progress,
+    required this.color,
+    this.strokeWidth = 3.6,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (progress <= 0.01) return;
+
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final path = Path();
+    // Titik awal, sudut bawah, dan ujung atas tanda centang
+    final p1 = Offset(size.width * 0.28, size.height * 0.52);
+    final p2 = Offset(size.width * 0.44, size.height * 0.68);
+    final p3 = Offset(size.width * 0.72, size.height * 0.36);
+
+    path.moveTo(p1.dx, p1.dy);
+    path.lineTo(p2.dx, p2.dy);
+    path.lineTo(p3.dx, p3.dy);
+
+    final metrics = path.computeMetrics().toList();
+    if (metrics.isEmpty) return;
+
+    final metric = metrics.first;
+    final totalLength = metric.length;
+    final currentLength = totalLength * progress.clamp(0.0, 1.0);
+
+    final extractPath = metric.extractPath(0.0, currentLength);
+    canvas.drawPath(extractPath, paint);
   }
 
-  Widget _buildMainView({
-    required BuildContext context,
-    required bool isDark,
-    required bool isExpense,
-    required bool isTransfer,
-    required String displayTitle,
-    required String formattedAmount,
-  }) {
-    String questionText;
-    if (isExpense) {
-      questionText = "Gimana, worth it gak nih?";
-    } else if (isTransfer) {
-      questionText = "Transfer aman terkirim!";
-    } else {
-      questionText = "Alhamdulillah, rezeki masuk! ✨";
-    }
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // Baris Atas: Info Ringkas Transaksi & Tombol Tutup
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Flexible(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  "$displayTitle • $formattedAmount",
-                  style: GoogleFonts.nunito(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? Colors.white70 : Colors.black87,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: () => Navigator.of(context, rootNavigator: true).pop(),
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.close_rounded,
-                  size: 16,
-                  color: isDark ? Colors.white54 : Colors.black45,
-                ),
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 18),
-
-        // Pertanyaan Singkat, Hangat & Manusiawi (Tanpa gaya AI/kuesioner kaku)
-        Text(
-          questionText,
-          textAlign: TextAlign.center,
-          style: GoogleFonts.nunito(
-            fontSize: 16.5,
-            fontWeight: FontWeight.w800,
-            color: isDark ? Colors.white : Colors.black87,
-          ),
-        ),
-
-        const SizedBox(height: 16),
-
-        // 3 Tombol Reaksi Santai & Ramah
-        if (isExpense)
-          Row(
-            children: [
-              Expanded(
-                child: _buildReactionBtn(
-                  emoji: "😍",
-                  label: "Worth it!",
-                  color: const Color(0xFF10B981),
-                  isDark: isDark,
-                  onTap: () => _onSelectReaction(
-                    sentimentKey: "wise",
-                    emoji: "😍",
-                    friendlyResponse: "Mantap, yang penting bermanfaat! ✨",
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildReactionBtn(
-                  emoji: "👍",
-                  label: "Pas kok",
-                  color: const Color(0xFF007AFF),
-                  isDark: isDark,
-                  onTap: () => _onSelectReaction(
-                    sentimentKey: "normal",
-                    emoji: "👍",
-                    friendlyResponse: "Sip, kebutuhan aman terkendali! 👌",
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildReactionBtn(
-                  emoji: "😅",
-                  label: "Khilaf",
-                  color: const Color(0xFFFF5252),
-                  isDark: isDark,
-                  onTap: () => _onSelectReaction(
-                    sentimentKey: "impulsive",
-                    emoji: "😅",
-                    friendlyResponse: "Santai, besok kita rem dikit ya! 😉",
-                  ),
-                ),
-              ),
-            ],
-          )
-        else if (isTransfer)
-          Row(
-            children: [
-              Expanded(
-                child: _buildReactionBtn(
-                  emoji: "👍",
-                  label: "Beres",
-                  color: const Color(0xFF007AFF),
-                  isDark: isDark,
-                  onTap: () => _onSelectReaction(
-                    sentimentKey: "normal",
-                    emoji: "👍",
-                    friendlyResponse: "Sip, transfer sukses dicatat! 👌",
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildReactionBtn(
-                  emoji: "🤝",
-                  label: "Selesai",
-                  color: const Color(0xFF10B981),
-                  isDark: isDark,
-                  onTap: () => _onSelectReaction(
-                    sentimentKey: "wise",
-                    emoji: "🤝",
-                    friendlyResponse: "Mantap, satu urusan selesai! 🤝",
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildReactionBtn(
-                  emoji: "💼",
-                  label: "Rutin",
-                  color: const Color(0xFF5856D6),
-                  isDark: isDark,
-                  onTap: () => _onSelectReaction(
-                    sentimentKey: "normal",
-                    emoji: "💼",
-                    friendlyResponse: "Keren, alur keuangan tertata rapi! ✨",
-                  ),
-                ),
-              ),
-            ],
-          )
-        else
-          Row(
-            children: [
-              Expanded(
-                child: _buildReactionBtn(
-                  emoji: "🤲",
-                  label: "Syukur",
-                  color: const Color(0xFF10B981),
-                  isDark: isDark,
-                  onTap: () => _onSelectReaction(
-                    sentimentKey: "wise",
-                    emoji: "🤲",
-                    friendlyResponse: "Semoga berkah dan makin lancar! 🤲",
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildReactionBtn(
-                  emoji: "💰",
-                  label: "Tabung",
-                  color: const Color(0xFF007AFF),
-                  isDark: isDark,
-                  onTap: () => _onSelectReaction(
-                    sentimentKey: "normal",
-                    emoji: "💰",
-                    friendlyResponse: "Keren, masa depan makin siap! 🚀",
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildReactionBtn(
-                  emoji: "🎁",
-                  label: "Reward",
-                  color: const Color(0xFFF59E0B),
-                  isDark: isDark,
-                  onTap: () => _onSelectReaction(
-                    sentimentKey: "normal",
-                    emoji: "🎁",
-                    friendlyResponse: "Kamu berhak nikmatin hasilnya! 🎉",
-                  ),
-                ),
-              ),
-            ],
-          ),
-      ],
-    );
-  }
-
-  Widget _buildReactionBtn({
-    required String emoji,
-    required String label,
-    required Color color,
-    required bool isDark,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        splashColor: color.withValues(alpha: 0.15),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: isDark ? 0.12 : 0.08),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: color.withValues(alpha: 0.22),
-              width: 1,
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                emoji,
-                style: const TextStyle(fontSize: 26),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                label,
-                style: GoogleFonts.nunito(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: color,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+  @override
+  bool shouldRepaint(_AnimatedCheckmarkPainter oldDelegate) {
+    return oldDelegate.progress != progress ||
+        oldDelegate.color != color ||
+        oldDelegate.strokeWidth != strokeWidth;
   }
 }
