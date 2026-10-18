@@ -18,6 +18,8 @@ import 'package:sipeka/core/theme/app_theme.dart';
 import 'package:sipeka/core/constants/constants.dart' show AppIcons;
 import 'package:sipeka/widgets/custom_numpad.dart';
 import 'package:sipeka/features/wallet/presentation/controllers/wallet_provider.dart';
+import 'package:sipeka/core/navigation/navigation_helper.dart';
+import 'package:sipeka/features/transaction/presentation/widgets/transaction_feedback_dialog.dart';
 
 class InputTransactionScreen extends StatefulWidget {
   final String? initialCategory;
@@ -773,7 +775,12 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
       if (success1 && success2) {
         if (mounted) {
           Navigator.pop(context); // Kembali ke screen sebelumnya
-          SipekaNotification.showSuccess(context, "Mantap! Transfer saldomu berhasil disimpan.");
+          Future.delayed(const Duration(milliseconds: 280), () {
+            final activeCtx = navigatorKey.currentContext;
+            if (activeCtx != null) {
+              TransactionFeedbackDialog.show(activeCtx, transaction: expenseTx);
+            }
+          });
         }
       } else {
         if (mounted) {
@@ -805,7 +812,12 @@ class _InputTransactionScreenState extends State<InputTransactionScreen> {
       if (success) {
         if (mounted) {
           Navigator.pop(context); // Kembali ke screen sebelumnya menggunakan screen's navigator
-          SipekaNotification.showSuccess(context, "Mantap! Transaksimu berhasil disimpan.");
+          Future.delayed(const Duration(milliseconds: 280), () {
+            final activeCtx = navigatorKey.currentContext;
+            if (activeCtx != null) {
+              TransactionFeedbackDialog.show(activeCtx, transaction: newTx);
+            }
+          });
         }
       } else {
         if (mounted) {

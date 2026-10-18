@@ -10,6 +10,7 @@ import 'package:sipeka/features/budget/presentation/controllers/budget_provider.
 import 'package:sipeka/core/services/notifications.dart';
 import 'package:sipeka/core/constants/constants.dart';
 import 'package:sipeka/core/services/ai_service.dart';
+import 'package:sipeka/features/transaction/presentation/widgets/transaction_feedback_dialog.dart';
 
 class TransactionHelper {
   // --- FUNGSI FORMAT TEKS SUARA KE RUPIAH (Rp.xxx) ---
@@ -544,10 +545,8 @@ class TransactionHelper {
         await txProvider.fetchAndSetTransactions();
         if (!context.mounted) return;
 
-        // ✅ Lebih reliable dari Future.delayed
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          SipekaNotification.showSuccess(context, "Berhasil mencatat $label");
-          debugPrint("DEBUG: showSuccess dipanggil");
+          TransactionFeedbackDialog.show(context, transaction: newTx);
         });
       } else {
         if (!context.mounted) return;
