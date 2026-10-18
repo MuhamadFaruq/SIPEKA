@@ -15,6 +15,7 @@ class NotificationService {
   static void Function(String)? onNotificationTapped;
 
   static Future<void> init() async {
+    if (kIsWeb) return;
     tz.initializeTimeZones();
 
     // FIX KHUSUS: Menggunakan 'dynamic' untuk menangkap objek lalu dikonversi ke String
@@ -66,16 +67,22 @@ class NotificationService {
   }
 
   static Future<void> requestPermission() async {
-    if (Platform.isAndroid) {
-      final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
-          _notificationsPlugin.resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>();
+    if (kIsWeb) return;
+    try {
+      if (Platform.isAndroid) {
+        final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
+            _notificationsPlugin.resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>();
 
-      await androidImplementation?.requestNotificationsPermission();
+        await androidImplementation?.requestNotificationsPermission();
+      }
+    } catch (e) {
+      debugPrint("requestPermission warning: $e");
     }
   }
 
   static Future<void> scheduleReminder({int hour = 20, int minute = 0}) async {
+    if (kIsWeb) return;
     final prefs = await SharedPreferences.getInstance();
     String displayUsername = prefs.getString('user_name') ?? "Faruq";
 
@@ -115,10 +122,12 @@ class NotificationService {
   }
 
   static Future<void> cancelAll() async {
+    if (kIsWeb) return;
     await _notificationsPlugin.cancelAll();
   }
 
   static Future<void> scheduleBillReminder(BillEntity bill) async {
+    if (kIsWeb) return;
     await cancelBillReminder(bill.id);
 
     if (!bill.isActive || !bill.remindMe) return;
@@ -159,6 +168,7 @@ class NotificationService {
   }
 
   static Future<void> cancelBillReminder(String billId) async {
+    if (kIsWeb) return;
     try {
       await _notificationsPlugin.cancel(id: billId.hashCode);
       debugPrint("Membatalkan pengingat untuk bill ID: $billId");
@@ -173,6 +183,7 @@ class NotificationService {
     required String body,
     String? payload,
   }) async {
+    if (kIsWeb) return;
     const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'transaction_tracker',
       'Transaction Tracker',

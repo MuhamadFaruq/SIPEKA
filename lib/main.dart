@@ -1,6 +1,7 @@
 // main.dart
 
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -49,10 +50,12 @@ void main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    FirebaseFirestore.instance.settings = const Settings(
-      persistenceEnabled: true,
-      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-    );
+    if (!kIsWeb) {
+      FirebaseFirestore.instance.settings = const Settings(
+        persistenceEnabled: true,
+        cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+      );
+    }
     // Inisialisasi Firestore Service (guest UID fallback & default wallets seeding)
     await FirestoreService.instance.init();
     debugPrint("Firebase & Firestore Offline Persistence Berhasil Terkoneksi!");
@@ -73,18 +76,22 @@ void main() async {
   await LocalKbService.init();
   
   // Set App Group ID untuk iOS/Android Widget communication
-  try {
-    if (Platform.isIOS || Platform.isAndroid) {
-      await HomeWidget.setAppGroupId('group.com.example.sipeka');
+  if (!kIsWeb) {
+    try {
+      if (Platform.isIOS || Platform.isAndroid) {
+        await HomeWidget.setAppGroupId('group.com.example.sipeka');
+      }
+    } catch (e) {
+      debugPrint("HomeWidget setAppGroupId note: $e");
     }
-  } catch (e) {
-    debugPrint("HomeWidget setAppGroupId note: $e");
   }
 
-  // --- TAMBAHKAN INI: Minta izin Notifikasi & Exact Alarm ---
-  // Tanpa ini, scheduleReminder di bawah akan gagal di Android 13/14
-  await NotificationService.requestPermission(); 
-  // ----------------------------------------------------------
+  // Minta izin Notifikasi & Exact Alarm (khusus mobile)
+  try {
+    await NotificationService.requestPermission(); 
+  } catch (e) {
+    debugPrint("Notification permission note: $e");
+  }
 
   // 2. Ambil status pengingat dari memori HP
   final prefs = await SharedPreferences.getInstance();

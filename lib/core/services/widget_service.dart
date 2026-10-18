@@ -13,6 +13,7 @@ class WidgetService {
 
   /// Memperbarui saldo pada widget layar utama HP secara real-time
   static Future<void> updateWidgetData(double totalSaldo) async {
+    if (kIsWeb) return;
     if (!Platform.isAndroid && !Platform.isIOS) return;
     try {
       final String formattedSaldo = NumberFormat.currency(
@@ -40,6 +41,7 @@ class WidgetService {
 
   /// Mendapatkan URI peluncuran jika aplikasi dibuka dari klik widget saat tertutup
   static Future<Uri?> getInitiallyLaunchedUri() async {
+    if (kIsWeb) return null;
     if (!Platform.isAndroid && !Platform.isIOS) return null;
     try {
       return await HomeWidget.initiallyLaunchedFromHomeWidget();
